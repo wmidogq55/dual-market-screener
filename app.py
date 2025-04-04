@@ -1,55 +1,52 @@
+import streamlit as st
 import pandas as pd
+import ta
 from finmind.data import DataLoader
-from ta.momentum import RSIIndicator
-from ta.trend import MACD
 
-# 設定 API Token
-token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyNS0wNC0wMyAxMDo0OTo1MiIsInVzZXJfaWQiOiJ3bWlkb2dxNTUiLCJpcCI6IjExMS4yNDYuODIuMjE1In0.WClrNkfmH8vKQkEIQb6rVmAnQToh4hQeYIAJLlO2siU"
+# 使用者輸入 RSI 門檻
+rsi_threshold = st.slider('RSI 門檻值（小於則列入）', min_value=5, max_value=50, value=30, step=1)
 
-# 登入 FinMind
+# 初始化 FinMind
 api = DataLoader()
-api.login_by_token(api_token=token)
+api.login_by_token(api_token='你的Token')
 
-# 抓台股所有上市股票清單
-stock_list = api.taiwan_stock_info()
-stock_ids = stock_list["stock_id"].unique().tolist()
-
-# 篩選用：可先試 10 檔測試
-test_ids = stock_ids[:10]
+# 取得台股上市公司列表（範例使用前幾檔）
+stock_list = api.taiwan_stock_info()[:5]
 
 results = []
 
-for stock_id in test_ids:
+for stock_id in stock_list['stock_id']:
     try:
         df = api.taiwan_stock_daily(
             stock_id=stock_id,
-            start_date="2024-03-01",
-            end_date="2025-04-03"
+            start_date="2024-01-01",
+            end_date="2025-04-04"
         )
-        if len(df) < 35:
+        if len(df) < 50:
             continue
         df = df.sort_values("date")
-        df["close"] = df["close"].astype(float)
+        df.set_index("date", inplace=True)
+        df["RSI"] = ta.momentum.RSIIndicator(close=df["close"]).rsi()
+        df["MACD"] = ta.trend.MACD(close=df["close"]).macd_diff()
 
-        rsi = RSIIndicator(close=df["close"], window=14)
-        df["rsi"] = rsi.rsi()
+        latest = df.iloc[-1]
+        rsi_value = latest["RSI"]
+        macd_cross = latest["MACD"] > 0 and df["MACD"].iloc[-2] <= 0
 
-        macd = MACD(close=df["close"])
-        df["macd"] = macd.macd()
-        df["macd_signal"] = macd.macd_signal()
-
-        last = df.iloc[-1]
-        if last["rsi"] < 30 and last["macd"] > last["macd_signal"]:
+        if rsi_value < rsi_threshold and macd_cross:
             results.append({
-                "stock_id": stock_id,
-                "rsi": round(last["rsi"], 2),
-                "macd": round(last["macd"], 2),
-                "macd_signal": round(last["macd_signal"], 2),
+                "股票代號": stock_id,
+                "RSI": round(rsi_value, 2),
+                "MACD黃金交叉": macd_cross
             })
-    except Exception as e:
-        print(f"{stock_id} 發生錯誤：{e}")
-        continue
 
-result_df = pd.DataFrame(results)
-print(result_df)
-result_df.to_excel("rsi_macd_result.xlsx", index=False)
+    except Exception as e:
+        st.warning(f"{stock_id} 發生錯誤：{e}")
+
+if results:
+    df_result = pd.DataFrame(results)
+    st.success("✅ 符合條件的標的如下")
+    st.dataframe(df_result)
+    st.download_button("下載結果 Excel", df_result.to_csv(index=False), "篩選結果.csv")
+else:
+    st.warning("⚠️ 沒有符合條件的股票。")
