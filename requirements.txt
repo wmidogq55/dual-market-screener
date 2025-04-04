@@ -1,4 +1,4 @@
 streamlit
 pandas
 ta
-FinMind==1.4.0
+finmind
