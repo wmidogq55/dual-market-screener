@@ -8,7 +8,7 @@ rsi_threshold = st.slider('RSI 門檻值（小於則列入）', min_value=5, max
 
 # 初始化 FinMind
 api = DataLoader()
-api.login_by_token(api_token='你的Token')
+api.login_by_token(api_token='eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyNS0wNC0wMyAxMDo0OTo1MiIsInVzZXJfaWQiOiJ3bWlkb2dxNTUiLCJpcCI6IjExMS4yNDYuODIuMjE1In0.WClrNkfmH8vKQkEIQb6rVmAnQToh4hQeYIAJLlO2siU')
 
 # 取得台股上市公司列表（範例使用前幾檔）
 stock_list = api.taiwan_stock_info()[:5]
