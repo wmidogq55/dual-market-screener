@@ -6,7 +6,7 @@ import ta
 
 # === 使用者登入 ===
 api = DataLoader()
-api.login(user_id="你的帳號", password="你的密碼")  # 請替成你的 FinMind 帳號資料
+api.login(user_id="wmidogq55", password="single0829")  # 請替成你的 FinMind 帳號資料
 
 # === 參數設定 ===
 start_date = "2023-01-01"
