@@ -1,101 +1,102 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from FinMind.data import DataLoader
-import datetime
 import ta
+from datetime import datetime, timedelta
 
 # === 使用者登入 ===
 api = DataLoader()
-api.login(user_id="wmidogq55", password="single0829")  # 請替成你的 FinMind 帳號資料
+api.login(token="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyNS0wNC0wNSAyMTozMTo1NyIsInVzZXJfaWQiOiJ3bWlkb2dxNTUiLCJpcCI6IjExMS4yNDYuODIuMjE1In0.EMBmMMyYExvSqI1le-2DCTmOudEhrzBRqqfz_ArAucg")
 
-# === 參數設定 ===
-start_date = "2023-01-01"
-end_date = "2024-12-31"
+# === 日期設定 ===
+end_date = datetime.today()
+start_date = end_date - timedelta(days=120)
 
 # === Streamlit UI ===
-st.title("📈 全臺股即時策略選股系統")
+st.set_page_config(page_title="全台股即時策略選股系統", layout="wide")
+st.title("📈 全台股即時策略選股系統（法人連買 + RSI + 突破 20MA）")
 
-# 輸入要算的股票代碼列表
-stock_list_input = st.text_area("請輸入股票代碼列表（用、分隔）", "2454，6176，3481，3037，3006")
-stock_list = [s.strip() for s in stock_list_input.split("\uff0c") if s.strip()]
+# === 功能說明 ===
+with st.expander("📘 策略條件說明"):
+    st.markdown("""
+    **策略條件：**
+    - ✅ 外資連續買超 3 天，且買超總張數符合門檻（小型 300 張、中型 500 張、大型 800 張）
+    - ✅ RSI 指標上穿 50
+    - ✅ 收盤價突破 20 日均線（視為布林中軸）
+    """)
 
-# === 策略回測函數 ===
-def backtest(stock_id):
+# === 法人連買檢查 ===
+def check_legal_buy(df, stock_cap):
+    df = df.sort_values("date")
+    df["連買張數"] = df["buy"].rolling(window=3).sum()
+    if stock_cap < 50e8:
+        return df["連買張數"].iloc[-1] >= 300
+    elif stock_cap < 300e8:
+        return df["連買張數"].iloc[-1] >= 500
+    else:
+        return df["連買張數"].iloc[-1] >= 800
+
+# === RSI 上穿 50 檢查 ===
+def check_rsi_up(df):
+    rsi = ta.momentum.RSIIndicator(close=df["close"]).rsi()
+    return rsi.iloc[-2] < 50 and rsi.iloc[-1] >= 50
+
+# === 收盤價突破 MA20 ===
+def check_price_break_ma(df):
+    ma20 = df["close"].rolling(window=20).mean()
+    return df["close"].iloc[-1] > ma20.iloc[-1]
+
+# === 核心回測函式 ===
+def check_stock(stock_id, market_value):
     try:
-        price_df = api.taiwan_stock_daily(stock_id=stock_id, start_date=start_date, end_date=end_date)
-        legal_df = api.taiwan_stock_institutional_investors(stock_id=stock_id, start_date=start_date, end_date=end_date)
+        price_df = api.taiwan_stock_price(
+            stock_id=stock_id,
+            start_date=start_date.strftime("%Y-%m-%d"),
+            end_date=end_date.strftime("%Y-%m-%d")
+        )
+        legal_df = api.taiwan_stock_institutional_investors(
+            stock_id=stock_id,
+            start_date=start_date.strftime("%Y-%m-%d"),
+            end_date=end_date.strftime("%Y-%m-%d")
+        )
         if price_df.empty or legal_df.empty:
             return None
 
-        df = price_df[['date', 'close']].copy()
-        df['date'] = pd.to_datetime(df['date'])
-        df['rsi'] = ta.momentum.RSIIndicator(close=df['close']).rsi()
-        df['ma20'] = df['close'].rolling(window=20).mean()
+        foreign = legal_df[legal_df["name"] == "Foreign_Investor"]
+        foreign_group = foreign.groupby("date")["buy"].sum().reset_index()
+        df = price_df[["date", "close"]].merge(foreign_group, on="date", how="left").fillna(0)
 
-        legal = legal_df[legal_df['name'] == 'Foreign_Investor']
-        legal = legal.groupby('date')['buy'].sum().reset_index()
-        legal.columns = ['date', 'foreign_buy']
-        df = pd.merge(df, legal, on='date', how='left')
-        df['foreign_buy'] = df['foreign_buy'].fillna(0)
-
-        # === 進場條件 ===
-        df['entry_signal'] = (
-            (df['foreign_buy'].rolling(window=3).sum() > 0) &
-            (df['rsi'] > 50) &
-            (df['close'] > df['ma20'])
-        )
-
-        entry_dates = df[df['entry_signal']].index.tolist()
-
-        total_profit = 0
-        win_count = 0
-        entry_count = 0
-
-        for entry_idx in entry_dates:
-            if entry_idx + 30 >= len(df):
-                continue
-            entry_price = df.loc[entry_idx, 'close']
-            future_prices = df.loc[entry_idx+1:entry_idx+30, 'close']
-            max_profit = (future_prices.max() - entry_price) / entry_price
-            min_drawdown = (future_prices.min() - entry_price) / entry_price
-
-            if min_drawdown < -0.1:
-                continue  # 停損
-
-            entry_count += 1
-            profit = (future_prices.iloc[-1] - entry_price)
-            total_profit += profit
-            if profit > 0:
-                win_count += 1
-
-        if entry_count == 0:
-            return None
-
-        return {
-            '股票代碼': stock_id,
-            '進場次數': entry_count,
-            '總投入': entry_count * 200000,
-            '總獲利': round(total_profit * 5),  # 五倍檔款
-            '總報酬率': round((total_profit * 5) / (entry_count * 200000) * 100, 2),
-            '勝率': round((win_count / entry_count) * 100, 2)
-        }
+        if check_legal_buy(df, market_value) and check_rsi_up(df) and check_price_break_ma(df):
+            return stock_id
     except:
         return None
 
-# === 跟擊執行 ===
-if st.button("開始策略篩選"):
-    with st.spinner("正在請求資料與回測..."):
-        results = []
-        for stock_id in stock_list:
-            result = backtest(stock_id)
-            if result:
-                results.append(result)
-        if results:
-            df_result = pd.DataFrame(results)
-            df_result = df_result.sort_values(by='總報酬率', ascending=False).reset_index(drop=True)
-            st.success(f"篩選完成，有 {len(df_result)} 個標的符合條件")
-            st.dataframe(df_result)
-            csv = df_result.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(label="📄 下載 CSV", data=csv, file_name="strategy_selection.csv", mime='text/csv')
-        else:
-            st.warning("沒有標的符合條件")
+# === 抓股票清單 ===
+st.info("正在抓取股票清單 ...")
+info = api.taiwan_stock_info()
+info = info[info["type"] == "s"]  # 只取上市
+info = info[["stock_id", "stock_name", "market_value"]]
+stock_list = info["stock_id"].tolist()
+
+# === 開始選股 ===
+st.success("開始篩選符合策略條件的股票，請稍候 ...")
+results = []
+
+for i, row in info.iterrows():
+    sid = row["stock_id"]
+    mv = row["market_value"]
+    res = check_stock(sid, mv)
+    if res:
+        results.append({
+            "股票代碼": row["stock_id"],
+            "股票名稱": row["stock_name"],
+        })
+
+# === 顯示結果 ===
+if results:
+    df_result = pd.DataFrame(results)
+    st.dataframe(df_result)
+    st.download_button("下載結果 CSV", df_result.to_csv(index=False), file_name="策略選股結果.csv")
+else:
+    st.warning("❌ 沒有符合策略條件的股票")
