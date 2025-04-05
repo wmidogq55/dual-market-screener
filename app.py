@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 # === 使用者登入 ===
 api = DataLoader()
-api.login(token="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyNS0wNC0wNSAyMTozMTo1NyIsInVzZXJfaWQiOiJ3bWlkb2dxNTUiLCJpcCI6IjExMS4yNDYuODIuMjE1In0.EMBmMMyYExvSqI1le-2DCTmOudEhrzBRqqfz_ArAucg")  # <<== 這裡換成你的 token
+api.login(user_id="wmidogq55", password="single0829")
 
 # === 日期區間設定 ===
 end_date = datetime.today()
