@@ -35,7 +35,8 @@ if st.sidebar.button("🚀 執行策略選股 + 回測"):
             ]
             return stock_info
         except Exception as e:
-            st.error("❌ 無法取得股票清單，可能是 API 配額已用完，請稍後再試。
+    st.error("❌ 無法取得股票清單，可能是 API 配額已用完，請稍後再試。\n\n錯誤訊息：" + str(e))
+    st.stop()
 
 錯誤訊息：" + str(e))
             st.stop()
