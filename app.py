@@ -28,7 +28,11 @@ if run_button:
 
     @st.cache_data(show_spinner=False)
     def get_stock_list():
+    try:
         return api.taiwan_stock_info()
+    except Exception as e:
+        st.error("❌ 無法取得股票清單，可能是 API 配額已用完，請稍後再試。\n\n錯誤訊息：" + str(e))
+        st.stop()
 
     stock_list = get_stock_list()
     stock_ids = stock_list["stock_id"].unique().tolist()
