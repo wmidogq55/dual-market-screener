@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from FinMind.data import DataLoader
+from FinMind import DataLoader
 import ta
 from datetime import datetime, timedelta
 
