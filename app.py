@@ -26,8 +26,8 @@ if run_button:
         st.error("登入失敗，請檢查帳密")
         st.stop()
 
-    @st.cache_data(show_spinner=False)
-    def get_stock_list():
+   @st.cache_data(show_spinner=False)
+def get_stock_list():
     try:
         return api.taiwan_stock_info()
     except Exception as e:
