@@ -1,78 +1,110 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from FinMind.data import DataLoader
 from datetime import datetime, timedelta
-import ta
+from FinMind.data import DataLoader
+from ta.momentum import RSIIndicator
+from ta.trend import MACD
+import time
+
+st.set_page_config(page_title="全台股策略回測 App", layout="wide")
+st.title("📈 全台股即時策略 + 回測系統")
 
 # === 使用者登入 ===
-api = DataLoader()
-api.login(user_id="wmidogq55", password="single0829")
+st.sidebar.header("🔐 FinMind 登入")
+user_id = st.sidebar.text_input("帳號", value="wmidogq55")
+password = st.sidebar.text_input("密碼", type="password", value="single0829")
+start_date = st.sidebar.date_input("資料起始日", value=datetime.today() - timedelta(days=730))
+run_button = st.sidebar.button("🚀 執行策略選股 + 回測")
 
-# === 日期設定 ===
-end_date = datetime.today()
-start_date = end_date - timedelta(days=120)
-
-# === Streamlit UI ===
-st.set_page_config(page_title="全台股即時策略選股系統", layout="wide")
-st.title("📈 全台股即時策略選股系統（法人連買 + RSI + 突破 20MA）")
-
-with st.expander("🧠 策略條件說明："):
-    st.markdown("""
-**策略條件：**
-✅ 外資連續買超 3 天，且買超總張數符合門檻（小型股 300 張、中型股 500 張、大型股 800 張）  
-✅ RSI 上穿 50  
-✅ 收盤價突破 20MA
-""")
-
-# === 函數：判斷外資連買且買超數量達標 ===
-def check_legal_buy(df, stock_cap):
-    df = df.sort_values("date")
-    buy_volume = df["buy"].rolling(window=3).sum()
-    if stock_cap < 50:  # 小型股
-        return buy_volume.iloc[-1] >= 300
-    elif stock_cap < 300:  # 中型股
-        return buy_volume.iloc[-1] >= 500
-    else:  # 大型股
-        return buy_volume.iloc[-1] >= 800
-
-# === 函數：判斷 RSI 上穿 50 且收盤突破 20MA ===
-def check_rsi_price(df):
-    df = df.sort_values("date")
-    df["rsi"] = ta.momentum.RSIIndicator(df["close"]).rsi()
-    df["ma20"] = df["close"].rolling(window=20).mean()
-    
-    rsi_cross = df["rsi"].iloc[-2] < 50 and df["rsi"].iloc[-1] >= 50
-    price_break = df["close"].iloc[-1] > df["ma20"].iloc[-1]
-    
-    return rsi_cross and price_break
-
-# === 主流程：掃描所有上市股票 ===
-st.info("📡 篩選中，請稍候...")
-
-all_stocks = api.taiwan_stock_info()
-listed_stocks = all_stocks[all_stocks["type"] == "twse"]
-result = []
-
-for stock_id in listed_stocks["stock_id"]:
+if run_button:
+    st.info("登入中...")
+    api = DataLoader()
     try:
-        price_df = api.taiwan_stock_daily(stock_id=stock_id, start_date=start_date.strftime('%Y-%m-%d'))
-        legal_df = api.taiwan_stock_institutional_investors(stock_id=stock_id, start_date=start_date.strftime('%Y-%m-%d'))
-        if price_df.empty or legal_df.empty:
-            continue
+        api.login(user_id=user_id, password=password)
+        st.success("登入成功")
+    except:
+        st.error("登入失敗，請檢查帳密")
+        st.stop()
 
-        legal_df = legal_df[legal_df["name"] == "Foreign_Investor"][["date", "buy"]]
+    @st.cache_data(show_spinner=False)
+    def get_stock_list():
+        return api.taiwan_stock_info()
 
-        stock_cap = listed_stocks[listed_stocks["stock_id"] == stock_id]["market_value"].values[0] / 1e8  # 單位轉換成億元
+    stock_list = get_stock_list()
+    stock_ids = stock_list["stock_id"].unique().tolist()
 
-        if check_legal_buy(legal_df, stock_cap) and check_rsi_price(price_df):
-            result.append(stock_id)
-    except Exception as e:
-        continue
+    result = []
 
-# === 顯示結果 ===
-if result:
-    st.success("✅ 符合條件的股票：")
-    st.write("、".join(result))
-else:
-    st.warning("❌ 沒有符合條件的股票")
+    def run_backtest(stock_id):
+        try:
+            df = api.taiwan_stock_daily(
+                stock_id=stock_id,
+                start_date=start_date.strftime("%Y-%m-%d"),
+                end_date=datetime.today().strftime("%Y-%m-%d")
+            )
+            if df.empty or len(df) < 100:
+                return None
+
+            df = df.sort_values("date")
+            df["rsi"] = RSIIndicator(df["close"]).rsi()
+            macd = MACD(df["close"])
+            df["macd"] = macd.macd()
+            df["macd_signal"] = macd.macd_signal()
+            df["ma20"] = df["close"].rolling(20).mean()
+
+            trades = []
+            in_position = False
+            entry_price = 0
+
+            for i in range(1, len(df)):
+                row = df.iloc[i]
+                prev = df.iloc[i - 1]
+
+                if not in_position:
+                    if row["rsi"] < 30 and row["macd"] > row["macd_signal"] and row["close"] > row["ma20"]:
+                        entry_price = row["close"]
+                        in_position = True
+                else:
+                    gain = (row["close"] - entry_price) / entry_price
+                    if gain >= 0.1 or gain <= -0.05 or (prev["rsi"] >= 70 and row["rsi"] < prev["rsi"]):
+                        trades.append(gain)
+                        in_position = False
+
+            if trades:
+                win_rate = sum(1 for r in trades if r > 0) / len(trades)
+                avg_return = sum(trades) / len(trades)
+                return {
+                    "stock_id": stock_id,
+                    "trades": len(trades),
+                    "win_rate": round(win_rate, 2),
+                    "avg_return": round(avg_return, 4),
+                    "annualized_return": round(avg_return * len(trades), 4)
+                }
+        except:
+            return None
+
+    st.subheader("📊 正在執行回測中...")
+    progress = st.progress(0)
+    result_data = []
+    success = 0
+
+    for i, stock_id in enumerate(stock_ids[:300]):  # 限制 300 檔防止爆流量
+        res = run_backtest(stock_id)
+        if res:
+            result_data.append(res)
+            success += 1
+        progress.progress((i+1)/300)
+        time.sleep(0.2)  # 控制速率避免 API 超限
+
+    st.success(f"✅ 完成回測，共有 {success} 檔成功回測")
+    df_result = pd.DataFrame(result_data)
+    df_result = df_result.sort_values("annualized_return", ascending=False)
+
+    st.dataframe(df_result)
+
+    st.download_button(
+        label="📥 下載回測結果 CSV",
+        data=df_result.to_csv(index=False),
+        file_name="backtest_result.csv",
+        mime="text/csv"
+    )
