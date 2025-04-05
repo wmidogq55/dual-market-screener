@@ -2,4 +2,5 @@ streamlit
 pandas
 numpy
 ta
-git+https://github.com/FinMind/FinMind.git#egg=FinMind
+tqdm
+git+https://github.com/FinMind/FinMind.git@master#egg=FinMind
