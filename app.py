@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import datetime
@@ -15,6 +14,7 @@ def login_and_fetch_info():
     stock_info = stock_info[stock_info["stock_id"].str.len() == 4]
     return api, stock_info["stock_id"].unique().tolist()
 
+
 @st.cache_data(ttl=3600)
 def get_price_data(api, stock_id):
     df = api.taiwan_stock_daily(
@@ -24,11 +24,12 @@ def get_price_data(api, stock_id):
     )
     return df
 
+
 # --- 條件選單 UI ---
 st.set_page_config(page_title="進階條件選股", layout="wide")
-st.title("📊 全台股進階策略選股系統")
+st.title("📈 全台股進階策略選股系統")
+st.markdown("### 📌 選擇篩選條件")
 
-st.markdown("## 📌 選擇篩選條件")
 col1, col2, col3 = st.columns(3)
 with col1:
     cond_rsi = st.checkbox("RSI < 30")
@@ -39,15 +40,15 @@ with col2:
     cond_price60 = st.checkbox("股價 < 60 元")
     cond_foreign = st.checkbox("法人連3日買超")
 with col3:
-    cond_win = st.checkbox("歷史勝率 > 0.8")
-    cond_return = st.checkbox("平均報酬 > 5%")
+    cond_win = st.checkbox("歷史勝率 > 0.8", value=True)
+    cond_return = st.checkbox("平均報酬 > 5%", value=True)
 
 run_button = st.button("🚀 開始選股")
 
 # --- 分析主流程 ---
 if run_button:
     api, stock_ids = login_and_fetch_info()
-    stock_ids = stock_ids[:300]
+    stock_ids = stock_ids[:300]  # 限制最多 300 檔
     results = []
     progress = st.progress(0)
     status = st.empty()
@@ -56,6 +57,7 @@ if run_button:
         df = get_price_data(api, stock_id)
         if df.empty or len(df) < 60:
             continue
+
         df["close"] = df["close"].astype(float)
         df["RSI"] = RSIIndicator(df["close"]).rsi()
         macd = MACD(df["close"])
@@ -82,7 +84,7 @@ if run_button:
         if not pass_cond:
             continue
 
-        # 回測勝率條件
+        # 回測勝率條件（固定用 RSI<30 + 突破20MA）
         signals = df[(df["RSI"] < 30) & (df["close"] > df["SMA20"])]
         if len(signals) == 0:
             continue
@@ -114,4 +116,4 @@ if run_button:
         st.success(f"✅ 完成，共找到 {len(df_result)} 檔個股")
         st.dataframe(df_result)
     else:
-        st.warning("今天沒有符合條件的個股。")
+        st.warning("今天沒有符合條件的進場個股。")
