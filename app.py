@@ -1,8 +1,7 @@
+
 import streamlit as st
 import pandas as pd
 import datetime
-import numpy as np
-from ta.momentum import RSIIndicator
 from FinMind.data import DataLoader
 
 # 登入帳密方式 + 設定快取
