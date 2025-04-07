@@ -3,96 +3,82 @@ import streamlit as st
 import pandas as pd
 import datetime
 from FinMind.data import DataLoader
+from ta.momentum import RSIIndicator
+from ta.trend import SMAIndicator
 
 # 登入帳密方式 + 設定快取
 @st.cache_data(ttl=3600)
-def get_stock_list():
+def login_and_fetch_info():
     api = DataLoader()
     api.login(user_id="wmidogq55", password="single0829")
     try:
         stock_info = api.taiwan_stock_info()
-        stock_info = stock_info[stock_info["stock_id"].str.len() == 4]  # 僅保留上市上櫃個股
-        return stock_info
+        stock_info = stock_info[stock_info["stock_id"].str.len() == 4]  # 過濾上市櫃個股（排除ETF）
+        return api, stock_info["stock_id"].unique().tolist()
     except Exception as e:
-        st.error("❌ 無法取得股票清單，請檢查帳密或 API 狀況\n\n錯誤訊息：" + str(e))
+        st.error("❌ 無法取得股票清單，請檢查帳密或 API 狀況：\n" + str(e))
         st.stop()
 
-# 計算技術指標與進場條件
-def analyze_stock(stock_id):
-    api = DataLoader()
-    api.login(user_id="wmidogq55", password="single0829")
-    end_date = datetime.date.today()
-    start_date = end_date - datetime.timedelta(days=365)
-
+# 取得個股資料並判斷是否符合條件
+def analyze_stock(api, stock_id):
     try:
-        df = api.taiwan_stock_daily(stock_id=stock_id, start_date=str(start_date), end_date=str(end_date))
-        df = pd.DataFrame(df)
-        if df.empty:
+        df = api.taiwan_stock_daily(
+            stock_id=stock_id,
+            start_date=(datetime.date.today() - datetime.timedelta(days=365)).isoformat(),
+            end_date=datetime.date.today().isoformat()
+        )
+        if df.empty or len(df) < 60:
             return None
-        df["date"] = pd.to_datetime(df["date"])
-        df.set_index("date", inplace=True)
-        df["ma20"] = df["close"].rolling(window=20).mean()
-        df["rsi"] = compute_rsi(df["close"])
-        df["macd"], df["macd_signal"] = compute_macd(df["close"])
-        df["突破20MA"] = df["close"] > df["ma20"]
 
-        # 找出符合條件的進場點
-        df["entry"] = (df["rsi"] < 30) & (df["macd"] > df["macd_signal"]) & (df["突破20MA"])
-        trades = []
-        for i in range(len(df)-15):
-            if df["entry"].iloc[i]:
-                entry_price = df["close"].iloc[i]
-                future_prices = df["close"].iloc[i+1:i+16]
-                ret = (future_prices.max() - entry_price) / entry_price * 100
-                trades.append(ret)
+        df["close"] = df["close"].astype(float)
+        df["rsi"] = RSIIndicator(df["close"], window=14).rsi()
+        df["sma20"] = SMAIndicator(df["close"], window=20).sma_indicator()
 
-        if trades:
-            win_trades = [r for r in trades if r >= 10]
-            return {
-                "stock_id": stock_id,
-                "total_trades": len(trades),
-                "win_trades": len(win_trades),
-                "win_rate": round(len(win_trades)/len(trades), 2),
-                "avg_return": round(pd.Series(trades).mean(), 2)
-            }
-        return None
+        # 判斷今天是否 RSI < 30 且 收盤突破20MA
+        latest = df.iloc[-1]
+        if latest["rsi"] < 30 and latest["close"] > latest["sma20"]:
+            # 做回測：當日 RSI < 30 且突破 20MA 後持股15天
+            signals = df[(df["rsi"] < 30) & (df["close"] > df["sma20"])].copy()
+            if len(signals) == 0:
+                return None
+            signals["future_return"] = [
+                (df.iloc[i+15]["close"] - row["close"]) / row["close"]
+                if i + 15 < len(df) else 0
+                for i, row in signals.iterrows()
+            ]
+            signals["win"] = signals["future_return"] > 0.05  # 定義成功為 15 天內漲超過 5%
+            win_rate = signals["win"].mean()
+            avg_return = signals["future_return"].mean() * 100  # 百分比
+            return {"stock_id": stock_id, "win_rate": win_rate, "avg_return": round(avg_return, 2)}
+        else:
+            return None
     except:
         return None
 
-# RSI 計算函式
-def compute_rsi(series, period=14):
-    delta = series.diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = -delta.where(delta < 0, 0.0)
-    avg_gain = gain.rolling(window=period).mean()
-    avg_loss = loss.rolling(window=period).mean()
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-# MACD 計算函式
-def compute_macd(series, fast=12, slow=26, signal=9):
-    ema_fast = series.ewm(span=fast, adjust=False).mean()
-    ema_slow = series.ewm(span=slow, adjust=False).mean()
-    macd = ema_fast - ema_slow
-    signal_line = macd.ewm(span=signal, adjust=False).mean()
-    return macd, signal_line
-
-# 主程式邏輯
+# 主程式
 st.title("📈 全台股即時策略選股（RSI < 30 + 突破 20MA）")
-stock_list = get_stock_list()
-stock_ids = stock_list["stock_id"].unique().tolist()
+st.caption("僅顯示：今天出現進場訊號 + 背後歷史勝率 > 0.8 的個股")
+
+api, stock_ids = login_and_fetch_info()
+stock_ids = stock_ids[:300]  # 防爆處理：最多掃描 300 檔
 
 results = []
-for stock_id in stock_ids[:300]:  # 每次最多 300 檔
-    result = analyze_stock(stock_id)
+progress = st.progress(0)
+status = st.empty()
+
+for i, stock_id in enumerate(stock_ids):
+    progress.progress((i+1)/len(stock_ids))
+    status.text(f"正在分析第 {i+1} 檔：{stock_id}")
+    result = analyze_stock(api, stock_id)
     if result and result["win_rate"] >= 0.8:
         results.append(result)
 
+progress.empty()
+status.empty()
+
 if results:
-    df_result = pd.DataFrame(results)
-    df_result = df_result.sort_values("avg_return", ascending=False)
-    st.success(f"✅ 完成分析，共分析 {len(df_result)} 檔個股")
+    df_result = pd.DataFrame(results).sort_values("avg_return", ascending=False)
+    st.success(f"✅ 完成分析，共找到 {len(df_result)} 檔進場訊號個股")
     st.dataframe(df_result)
 else:
-    st.warning("未找到符合條件的個股。")
+    st.warning("今天沒有符合條件的進場個股。")
