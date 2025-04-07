@@ -15,7 +15,6 @@ def login_and_fetch_info():
     return api, stock_info["stock_id"].unique().tolist()
 
 
-@st.cache_data(ttl=3600)
 def get_price_data(api, stock_id):
     df = api.taiwan_stock_daily(
         stock_id=stock_id,
