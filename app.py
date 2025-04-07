@@ -58,7 +58,8 @@ if run_button:
             continue
 
         df["close"] = df["close"].astype(float)
-        df["close"] = df["close"].fillna(method="ffill")  
+        df["close"] = df["close"].fillna(method="ffill") 
+        df["close"] = df["close"].fillna(method="bfill") 
         df["RSI"] = RSIIndicator(df["close"]).rsi()
         macd = MACD(df["close"])
         df["MACD_diff"] = macd.macd_diff()
