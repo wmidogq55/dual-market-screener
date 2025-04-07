@@ -1,106 +1,115 @@
 import streamlit as st
 import pandas as pd
-import finmind
-from finmind.data import DataLoader
+import time
+import os
+import json
+from FinMind.data import DataLoader
 from datetime import datetime, timedelta
-import ta
 
-# 設定 FinMind API token
+# 快取檔案設定
+CACHE_FILE = "stock_cache.json"
+MAX_STOCKS = 300  # 最多處理 300 檔
+
+# 初始化 API
 api = DataLoader()
-api.login_by_token(api_token="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRlIjoiMjAyNS0wNC0wNSAyMTozMTo1NyIsInVzZXJfaWQiOiJ3bWlkb2dxNTUiLCJpcCI6IjExMS4yNDYuODIuMjE1In0.EMBmMMyYExvSqI1le-2DCTmOudEhrzBRqqfz_ArAucg")
+api.login(user_id="wmidogq55", password="single0829")  # 使用帳號密碼登入
 
-# 篩選條件：只保留上市/上櫃個股，不包含 ETF 或特別股
-def get_stock_list():
+@st.cache_data(ttl=3600)
+def load_stock_list():
     try:
         stock_info = api.taiwan_stock_info()
-        stock_info = stock_info[
-            (stock_info["type"].isin(["twse", "tpex"])) &
-            (~stock_info["stock_id"].str.startswith("00")) &
-            (~stock_info["stock_name"].str.contains("受益|債|反1|期|2X|永豐"))
-        ]
-        return stock_info
+        stock_info = stock_info[stock_info["stock_id"].str.len() == 4]  # 排除 ETF
+        return stock_info["stock_id"].unique().tolist()
     except Exception as e:
-        st.error("無法取得股票清單，可能是 API 配額用完，請稍後再試。\n\n錯誤訊息: " + str(e))
-        st.stop()
+        st.error(f"❌ 無法取得股票清單，錯誤訊息：{e}")
+        return []
 
-# 技術指標篩選
-def strategy_rsi_break_ma(df):
-    df["rsi"] = ta.momentum.RSIIndicator(df["close"], window=14).rsi()
-    df["ma20"] = df["close"].rolling(window=20).mean()
-    df["signal"] = (df["rsi"] < 30) & (df["close"] > df["ma20"])
-    return df
+def get_cached_data():
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, "r") as f:
+            return json.load(f)
+    return {}
 
-# 回測模擬策略
-def backtest(df):
-    df = strategy_rsi_break_ma(df)
-    df = df.dropna()
-    total_trades = 0
-    win_trades = 0
-    returns = []
+def save_cache(data):
+    with open(CACHE_FILE, "w") as f:
+        json.dump(data, f)
 
-    for i in range(len(df)):
-        if df.iloc[i]["signal"]:
-            entry_price = df.iloc[i]["close"]
-            for j in range(i + 1, min(i + 15, len(df))):
-                ret = (df.iloc[j]["close"] - entry_price) / entry_price
-                if ret > 0.1:
-                    win_trades += 1
-                    returns.append(ret)
-                    break
-            total_trades += 1
-    if total_trades == 0:
-        return None
-    win_rate = win_trades / total_trades
-    avg_return = pd.Series(returns).mean() * (252 / 15) if returns else 0
-    return {
-        "total_trades": total_trades,
-        "win_trades": win_trades,
-        "win_rate": round(win_rate, 2),
-        "annualized_return": round(avg_return * 100, 2)
-    }
-
-# 取得資料與執行回測
-def run_backtest(stock_id):
+def fetch_stock_data(stock_id, start_date):
     try:
         df = api.taiwan_stock_daily(
             stock_id=stock_id,
-            start_date=(datetime.today() - timedelta(days=400)).strftime("%Y-%m-%d"),
-            end_date=datetime.today().strftime("%Y-%m-%d"),
+            start_date=start_date,
         )
-        df = df[df["Trading_Volume"] > 0].copy()
-        df.rename(columns={"close": "close"}, inplace=True)
-        result = backtest(df)
-        if result:
-            return {
-                "stock_id": stock_id,
-                **result
-            }
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date").reset_index(drop=True)
+        df["20MA"] = df["close"].rolling(20).mean()
+        df["RSI"] = compute_rsi(df["close"])
+        return df
     except Exception as e:
         return None
 
-# Streamlit UI
-st.set_page_config(layout="wide")
-st.title("全台股即時策略選股（RSI+突破20MA）")
+def compute_rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
 
-stock_list = get_stock_list()
-stock_ids = stock_list["stock_id"].unique().tolist()
+def backtest_strategy(df):
+    buy_signals = (df["RSI"] < 30) & (df["close"] > df["20MA"])
+    df["buy_signal"] = buy_signals.shift(1)
 
-progress = st.progress(0)
+    returns = []
+    for i in range(1, len(df)):
+        if df["buy_signal"].iloc[i]:
+            buy_price = df["close"].iloc[i]
+            future_prices = df["close"].iloc[i + 1:i + 16]
+            if not future_prices.empty:
+                max_return = (future_prices.max() - buy_price) / buy_price
+                returns.append(max_return)
+    win_rate = sum([1 for r in returns if r > 0.1]) / len(returns) if returns else 0
+    return round(win_rate, 2), round((sum(returns) / len(returns)) * 100, 2) if returns else 0
+
+# ===== Streamlit APP 主體 =====
+
+st.title("📈 全台股即時策略選股（RSI < 30 + 突破 20MA）")
+
+stock_ids = load_stock_list()[:MAX_STOCKS]
+cache = get_cached_data()
+today = datetime.today().strftime("%Y-%m-%d")
+start_date = (datetime.today() - timedelta(days=365)).strftime("%Y-%m-%d")
+
 results = []
-total = len(stock_ids)
+progress = st.progress(0)
 
-for i, sid in enumerate(stock_ids):
-    res = run_backtest(sid)
-    if res:
-        results.append(res)
-    progress.progress((i + 1) / total)
+for i, stock_id in enumerate(stock_ids):
+    progress.progress(i / len(stock_ids))
 
-st.success(f"回測完成，成功分析 {len(results)} 檔股票")
+    if stock_id in cache and cache[stock_id]["date"] == today:
+        win_rate = cache[stock_id]["win_rate"]
+        avg_return = cache[stock_id]["avg_return"]
+    else:
+        df = fetch_stock_data(stock_id, start_date)
+        if df is None or df.empty:
+            continue
+        win_rate, avg_return = backtest_strategy(df)
+        cache[stock_id] = {
+            "date": today,
+            "win_rate": win_rate,
+            "avg_return": avg_return,
+        }
 
-if results:
-    df_result = pd.DataFrame(results)
-    df_result = df_result.sort_values("win_rate", ascending=False)
-    st.dataframe(df_result)
-    st.download_button("下載回測結果 CSV", df_result.to_csv(index=False), "result.csv", "text/csv")
-else:
-    st.warning("沒有符合條件的股票。")
+    results.append({
+        "stock_id": stock_id,
+        "win_rate": win_rate,
+        "avg_return": avg_return,
+    })
+
+save_cache(cache)
+
+df_result = pd.DataFrame(results)
+df_result = df_result.sort_values("win_rate", ascending=False)
+st.success(f"✅ 完成分析，共分析 {len(df_result)} 檔個股")
+st.dataframe(df_result)
