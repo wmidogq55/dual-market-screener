@@ -68,16 +68,6 @@ if run_button:
     status = st.empty()
 
     for i, stock_id in enumerate(stock_ids):
-        if st.session_state.stop_flag:  # ✅ 縮排對齊了
-           progress.empty()
-           if results:
-               df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
-               st.success(f"✅ 完成，共找到 {len(df_result)} 檔個股")
-               st.dataframe(df_result)
-           else:
-               st.warning("今天沒有符合條件的進場個股。")
-           st.warning("⚠️ 掃描已手動中止")
-           break
     
         try:
             print(f"開始分析：{stock_id}")
@@ -142,7 +132,18 @@ if run_button:
             "勝率": round(win_rate, 2),
             "平均報酬": round(avg_return, 2)
         })
-
+        
+        if st.session_state.stop_flag:  # ✅ 縮排對齊了
+            progress.empty()
+            if results:
+                df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
+                st.success(f"✅ 完成，共找到 {len(df_result)} 檔個股")
+                st.dataframe(df_result)
+            else:
+                st.warning("今天沒有符合條件的進場個股。")
+            st.warning("⚠️ 掃描已手動中止")
+            break
+    
         progress.progress((i + 1) / len(stock_ids))
         status.text(f"正在分析第 {i + 1} 檔：{stock_id}")
 
