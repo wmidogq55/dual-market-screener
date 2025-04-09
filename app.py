@@ -64,7 +64,7 @@ if run_button:
         macd = MACD(df["close"])
         df["MACD_diff"] = macd.macd_diff()
         df["MACD_cross"] = (df["MACD_diff"].shift(1) < 0) & (df["MACD_diff"] > 0)
-        df["SMA20"] = SMAIndicator(df["close"], window=20).sma_indicator()
+        df["SMA20"] = df["close"].rolling(window=20).mean()
         df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
         df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
 
