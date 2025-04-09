@@ -69,6 +69,7 @@ if run_button:
     if st.session_state.stop_flag:  # ✅ 每次都檢查
         st.warning("⚠️ 掃描已手動中止")
         break
+        
         try:
             print(f"開始分析：{stock_id}")
             status.text(f"正在分析第 {i+1} 檔：{stock_id}")
