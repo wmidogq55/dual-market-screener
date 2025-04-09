@@ -66,9 +66,9 @@ if run_button:
     status = st.empty()
 
     for i, stock_id in enumerate(stock_ids):
-    if st.session_state.stop_flag:  # ✅ 每次都檢查
-        st.warning("⚠️ 掃描已手動中止")
-        break
+        if st.session_state.stop_flag:  # ✅ 縮排對齊了
+           st.warning("⚠️ 掃描已手動中止")
+           break
         
         try:
             print(f"開始分析：{stock_id}")
