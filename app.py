@@ -56,7 +56,6 @@ if stop_button:
     st.session_state.stop_flag = True
 
 if run_button:
-    if "stop_flag" not in st.session_state:
     st.session_state.stop_flag = False
     
     api, stock_info = login_and_fetch_info()
