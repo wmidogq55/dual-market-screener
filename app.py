@@ -19,7 +19,7 @@ def login_and_fetch_info():
         ~stock_info["stock_name"].str.contains(etf_keywords)
     ]
 
-return api, stock_info
+    return api, stock_info
 
 def get_price_data(api, stock_id):
     df = api.taiwan_stock_daily(
