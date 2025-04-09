@@ -11,13 +11,15 @@ def login_and_fetch_info():
     api = DataLoader()
     api.login(user_id="wmidogq55", password="single0829")
     stock_info = api.taiwan_stock_info()
+    
     etf_keywords = "ETF|基金|元大|富邦|群益|國泰|中信|兆豐|永豐|第一金|統一|凱基"
     stock_info = stock_info[
-    (stock_info["stock_id"].str.len() == 4) &  # 股票代號長度為4
-    (stock_info["type"].isin(["tw", "tpex"])) &  # 只保留上市、上櫃
-    ~stock_info["stock_name"].str.contains(etf_keywords)
-]
+        (stock_info["stock_id"].str.len() == 4) &  # 股票代號長度為4
+        (stock_info["type"].isin(["tw", "tpex"])) &  # 只保留上市、上櫃
+        ~stock_info["stock_name"].str.contains(etf_keywords)
+    ]
 
+return api, stock_info
 
 def get_price_data(api, stock_id):
     df = api.taiwan_stock_daily(
