@@ -53,8 +53,12 @@ if run_button:
     status = st.empty()
 
     for i, stock_id in enumerate(stock_ids):
-        df = get_price_data(api, stock_id)
-        if df.empty or len(df) < 60:
+        try:
+            df = get_price_data(api, stock_id)
+            if df.empty or len(df) < 60:
+                continue
+        except Exception as e:
+            print(f"{stock_id} 資料錯誤：{e}")
             continue
 
         df["close"] = df["close"].astype(float)
@@ -110,6 +114,7 @@ if run_button:
         })
 
         progress.progress((i + 1) / len(stock_ids))
+        status.text(f"正在分析第 {i + 1} 檔：{stock_id}")
 
     progress.empty()
     if results:
