@@ -61,7 +61,6 @@ if run_button:
     st.session_state.stop_flag = False
     
     api, stock_info = login_and_fetch_info()
-    stock_info = stock_info[~stock_info["stock_name"].str.contains(etf_keywords)]  # ← 這行也可直接放在函式內
     stock_ids = stock_info["stock_id"].tolist()[:300]
     results = []
     progress = st.progress(0)
