@@ -54,6 +54,10 @@ if run_button:
 
     for i, stock_id in enumerate(stock_ids):
         try:
+            print(f"開始分析：{stock_id}")
+            status.text(f"正在分析第 {i+1} 檔：{stock_id}")
+            progress.progress((i + 1) / len(stock_ids))
+        
             df = get_price_data(api, stock_id)
             if df.empty or len(df) < 60:
                 continue
