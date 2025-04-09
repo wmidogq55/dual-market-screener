@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import random
 import datetime
 from FinMind.data import DataLoader
 from ta.momentum import RSIIndicator
@@ -61,7 +62,7 @@ if run_button:
     st.session_state.stop_flag = False
     
     api, stock_info = login_and_fetch_info()
-    stock_ids = stock_info["stock_id"].tolist()[:300]
+    stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
     results = []
     progress = st.progress(0)
     status = st.empty()
