@@ -11,8 +11,12 @@ def login_and_fetch_info():
     api = DataLoader()
     api.login(user_id="wmidogq55", password="single0829")
     stock_info = api.taiwan_stock_info()
-    stock_info = stock_info[stock_info["stock_id"].str.len() == 4]
-    return api, stock_info["stock_id"].unique().tolist()
+    etf_keywords = "ETF|基金|元大|富邦|群益|國泰|中信|兆豐|永豐|第一金|統一|凱基"
+    stock_info = stock_info[
+    (stock_info["stock_id"].str.len() == 4) &  # 股票代號長度為4
+    (stock_info["type"].isin(["tw", "tpex"])) &  # 只保留上市、上櫃
+    ~stock_info["stock_name"].str.contains(etf_keywords)
+]
 
 
 def get_price_data(api, stock_id):
@@ -42,17 +46,30 @@ with col3:
     cond_win = st.checkbox("歷史勝率 > 0.8", value=True)
     cond_return = st.checkbox("平均報酬 > 5%", value=True)
 
-run_button = st.button("🚀 開始選股")
+if "stop_flag" not in st.session_state:
+    st.session_state.stop_flag = False
 
-# --- 分析主流程 ---
+run_button = st.button("🚀 開始選股")
+stop_button = st.button("⛔ 停止掃描")
+
+if stop_button:
+    st.session_state.stop_flag = True
+
 if run_button:
-    api, stock_ids = login_and_fetch_info()
-    stock_ids = stock_ids[:300]  # 限制最多 300 檔
+    if "stop_flag" not in st.session_state:
+    st.session_state.stop_flag = False
+    
+    api, stock_info = login_and_fetch_info()
+    stock_info = stock_info[~stock_info["stock_name"].str.contains(etf_keywords)]  # ← 這行也可直接放在函式內
+    stock_ids = stock_info["stock_id"].tolist()[:300]
     results = []
     progress = st.progress(0)
     status = st.empty()
 
     for i, stock_id in enumerate(stock_ids):
+    if st.session_state.stop_flag:  # ✅ 每次都檢查
+        st.warning("⚠️ 掃描已手動中止")
+        break
         try:
             print(f"開始分析：{stock_id}")
             status.text(f"正在分析第 {i+1} 檔：{stock_id}")
