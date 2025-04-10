@@ -49,9 +49,9 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
         future_prices = df.loc[i+1:i+15]["close"]
 
         if future_prices.empty:
-        continue
+            continue
 
-    # ✅ 總報酬
+        # ✅ 總報酬
         final_price = future_prices.iloc[-1]
         total_return = (final_price - entry_price) / entry_price
         returns.append(total_return)
@@ -69,7 +69,7 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
         win_days.append(win_day)
 
     if len(returns) == 0:
-    return 0, 0, 0, 0
+        return 0, 0, 0, 0
 
     win_rate = sum(r > 0.05 for r in returns) / len(returns)
     avg_return = sum(returns) / len(returns)
