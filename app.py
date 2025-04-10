@@ -70,8 +70,8 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
     max_dd = min(max_drawdowns)
     avg_days = sum(win_days) / len(win_days)
 
-    print(f"✅ 共回測 {len(signals)} 筆訊號，勝率={win_rate:.2f}, 報酬={avg_return*100:.2f}%")
-    return win_rate, avg_return * 100, max_dd * 100, avg_hold_days
+    print(f"✅ 共回測 {len(signals)} 筆訊號，勝率={win_rate:.2f}, 報酬={avg_return * 100:.2f}%")
+    return win_rate, avg_return * 100, max_dd * 100, avg_days
 
 # --- UI ---
 st.set_page_config(page_title="進階條件選股", layout="wide")
