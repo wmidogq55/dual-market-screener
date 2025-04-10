@@ -50,10 +50,10 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
         if future_prices.empty:
             continue
 
-        future_return = (future_prices - entry_price) / entry_price
-        returns.append(future_return.iloc[-1])
-        max_drawdown = (future_prices.min() - entry_price) / entry_price
-        max_drawdowns.append(max_drawdown)
+    entry_price = row["close"]
+    final_price = future_prices.iloc[-1]
+    total_return = (final_price - entry_price) / entry_price
+    returns.append(total_return)  # ✅ 這是整段報酬
 
         win_day = 15
         for j, ret in enumerate(future_return):
@@ -66,7 +66,7 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
         return 0, 0, 0, 0
         
     win_rate = sum(r > 0.05 for r in returns) / len(returns)
-    avg_return = sum(returns) / len(returns)
+    avg_return = sum(returns) / len(returns)  # ✅ 這才是「平均每筆進場的總報酬」
     max_dd = min(max_drawdowns)
     avg_days = sum(win_days) / len(win_days)
 
