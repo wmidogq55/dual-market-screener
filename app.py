@@ -110,15 +110,20 @@ if run_button:
             continue
 
         # 回測勝率條件（固定用 RSI<30 + 突破20MA）
-        signals = df[(df["RSI"] < 30) & (df["close"] > df["SMA20"])]
-        if len(signals) == 0:
+        win_rate, avg_return, max_dd, avg_days = backtest_signals(df)
+        
+        if cond_win and win_rate < 0.8:
             continue
-        signals["future_return"] = [
-            (df.iloc[i+15]["close"] - row["close"]) / row["close"]
-            if i + 15 < len(df) else 0
-            for i, row in signals.iterrows()
-        ]
-        signals["win"] = signals["future_return"] > 0.05
+        if cond_return and avg_return < 5:
+            continue
+        results.append({
+            "股票代號": stock_id,
+            "勝率": round(win_rate, 2),
+            "平均報酬": round(avg_return, 2),
+            "最大回檔": round(max_dd, 2),
+            "平均持有天數": round(avg_days, 1)
+        })
+        
         win_rate = signals["win"].mean()
         avg_return = signals["future_return"].mean() * 100
 
@@ -146,6 +151,46 @@ if run_button:
     
         progress.progress((i + 1) / len(stock_ids))
         status.text(f"正在分析第 {i + 1} 檔：{stock_id}")
+
+def backtest_signals(df):
+    signals = df[(df["RSI"] < 30) & (df["close"] > df["SMA20"]) & (df["MACD_cross"])]
+
+    if signals.empty:
+        return 0, 0, 0, 0
+
+    returns = []
+    max_drawdowns = []
+    win_days = []
+
+    for i, row in signals.iterrows():
+        entry_price = row["close"]
+        future_prices = df.loc[i+1:i+15]["close"]
+
+        if future_prices.empty:
+            continue
+
+        future_return = (future_prices - entry_price) / entry_price
+        returns.append(future_return.iloc[-1])  # 第15天報酬（不管有沒有達成）
+
+        max_drawdown = (future_prices.min() - entry_price) / entry_price
+        max_drawdowns.append(max_drawdown)
+
+        win_day = 15
+        for j, ret in enumerate(future_return):
+            if ret > 0.05:
+                win_day = j + 1
+                break
+        win_days.append(win_day)
+
+    if len(returns) == 0:
+        return 0, 0, 0, 0
+
+    win_rate = sum(r > 0.05 for r in returns) / len(returns)
+    avg_return = sum(returns) / len(returns)
+    max_dd = min(max_drawdowns)
+    avg_hold_days = sum(win_days) / len(win_days)
+
+    return win_rate, avg_return * 100, max_dd * 100, avg_hold_days
 
     progress.empty()
     if results:
