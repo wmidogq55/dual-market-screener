@@ -29,10 +29,16 @@ def get_price_data(api, stock_id):
     return df
 
 # --- 回測引擎 ---
-def backtest_signals(df):
-    signals = df[(df["RSI"] < 30) & (df["close"] > df["SMA20"]) & (df["MACD_cross"])]
-    if signals.empty:
-        return 0, 0, 0, 0
+def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
+    cond = pd.Series([True] * len(df))
+    if use_rsi:
+        cond &= df["RSI"] < 30
+    if use_ma:
+        cond &= df["close"] > df["SMA20"]
+    if use_macd:
+        cond &= df["MACD_cross"]
+
+    signals = df[cond]
 
     returns = []
     max_drawdowns = []
@@ -58,11 +64,11 @@ def backtest_signals(df):
 
     if len(returns) == 0:
         return 0, 0, 0, 0
-
+        
     win_rate = sum(r > 0.05 for r in returns) / len(returns)
     avg_return = sum(returns) / len(returns)
     max_dd = min(max_drawdowns)
-    avg_hold_days = sum(win_days) / len(win_days)
+    avg_days = sum(win_days) / len(win_days)
 
     print(f"✅ 共回測 {len(signals)} 筆訊號，勝率={win_rate:.2f}, 報酬={avg_return*100:.2f}%")
     return win_rate, avg_return * 100, max_dd * 100, avg_hold_days
@@ -130,9 +136,17 @@ if run_button:
         if cond_vol and not today["vol_up"]: continue
         if cond_price60 and today["close"] >= 60: continue
 
-        win_rate, avg_return, max_dd, avg_days = backtest_signals(df)
-        if cond_win and win_rate < 0.8: continue
-        if cond_return and avg_return < 5: continue
+        win_rate, avg_return, max_dd, avg_days = backtest_signals(
+            df,
+            use_rsi=cond_rsi,
+            use_ma=cond_break_ma,
+            use_macd=cond_macd
+        )
+
+        if cond_win and win_rate < 0.8:
+            continue
+        if cond_return and avg_return < 5:
+            continue
 
         results.append({
             "股票代號": stock_id,
