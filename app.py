@@ -41,37 +41,42 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
     signals = df[cond]
 
     returns = []
-    max_drawdowns = []
-    win_days = []
+max_drawdowns = []
+win_days = []
 
-    for i, row in signals.iterrows():
-        entry_price = row["close"]
-        future_prices = df.loc[i+1:i+15]["close"]
-        if future_prices.empty:
-            continue
-
+for i, row in signals.iterrows():
     entry_price = row["close"]
+    future_prices = df.loc[i+1:i+15]["close"]
+
+    if future_prices.empty:
+        continue
+
+    # ✅ 總報酬
     final_price = future_prices.iloc[-1]
     total_return = (final_price - entry_price) / entry_price
-    returns.append(total_return)  # ✅ 這是整段報酬
+    returns.append(total_return)
 
-        win_day = 15
-        for j, ret in enumerate(future_return):
-            if ret > 0.05:
-                win_day = j + 1
-                break
-        win_days.append(win_day)
+    # ✅ 最大回檔
+    max_drawdown = (future_prices.min() - entry_price) / entry_price
+    max_drawdowns.append(max_drawdown)
 
-    if len(returns) == 0:
-        return 0, 0, 0, 0
-        
-    win_rate = sum(r > 0.05 for r in returns) / len(returns)
-    avg_return = sum(returns) / len(returns)  # ✅ 這才是「平均每筆進場的總報酬」
-    max_dd = min(max_drawdowns)
-    avg_days = sum(win_days) / len(win_days)
+    # ✅ 幾天內達成 5% 報酬
+    win_day = 15
+    for j, ret in enumerate((future_prices - entry_price) / entry_price):
+        if ret > 0.05:
+            win_day = j + 1
+            break
+    win_days.append(win_day)
 
-    print(f"✅ 共回測 {len(signals)} 筆訊號，勝率={win_rate:.2f}, 報酬={avg_return * 100:.2f}%")
-    return win_rate, avg_return * 100, max_dd * 100, avg_days
+if len(returns) == 0:
+    return 0, 0, 0, 0
+
+win_rate = sum(r > 0.05 for r in returns) / len(returns)
+avg_return = sum(returns) / len(returns)
+max_dd = min(max_drawdowns)
+avg_hold_days = sum(win_days) / len(win_days)
+
+return win_rate, avg_return * 100, max_dd * 100, avg_hold_days
 
 # --- UI ---
 st.set_page_config(page_title="進階條件選股", layout="wide")
