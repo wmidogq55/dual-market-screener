@@ -32,6 +32,7 @@ def get_price_data(api, stock_id):
 # --- 回測引擎 ---
 def backtest_signals(df):
     signals = df[(df["RSI"] < 30) & (df["close"] > df["SMA20"]) & (df["MACD_cross"])]
+    print(f"共回測 {len(signals)} 筆訊號，勝率={win_rate:.2f}, 報酬={avg_return:.2f}")
 
     if signals.empty:
         return 0, 0, 0, 0
@@ -147,14 +148,15 @@ if run_button:
         })
 
         if st.session_state.stop_flag:
+            progress.empty()
+        if results:
+            df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
+            st.success(f"✅ 完成，共找到 {len(df_result)} 檔個股")
+            st.dataframe(df_result)
+        else:
+            st.warning("今天沒有符合條件的進場個股。")
+            if st.session_state.stop_flag:
+                st.warning("⚠️ 掃描已手動中止")
             break
 
-    progress.empty()
-    if results:
-        df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
-        st.success(f"✅ 完成，共找到 {len(df_result)} 檔個股")
-        st.dataframe(df_result)
-    else:
-        st.warning("今天沒有符合條件的進場個股。")
-        if st.session_state.stop_flag:
-            st.warning("⚠️ 掃描已手動中止")
+    
