@@ -29,54 +29,48 @@ def get_price_data(api, stock_id):
     return df
 
 # --- 回測引擎 ---
-def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
-    cond = pd.Series([True] * len(df))
+def backtest_today_signal(df, use_rsi=True, use_ma=True, use_macd=True):
+    today = df.iloc[-1]
+    cond = True
     if use_rsi:
-        cond &= df["RSI"] < 30
+        cond &= today["RSI"] < 30
     if use_ma:
-        cond &= df["close"] > df["SMA20"]
+        cond &= today["close"] > today["SMA20"]
     if use_macd:
-        cond &= df["MACD_cross"]
+        cond &= today["MACD_cross"]
 
-    signals = df[cond]
+    if not cond:
+        return None  # ❌ 今天不符合條件
 
-    returns = []
-    max_drawdowns = []
-    win_days = []
+    # ✅ 進場模擬：今天進場，觀察接下來 15 天內的報酬
+    entry_date = df.index[-1]
+    entry_price = today["close"]
+    future_df = df.tail(16).iloc[1:]  # 明天開始的15天
 
-    for i, row in signals.iterrows():
-        entry_price = row["close"]
-        future_prices = df.loc[i+1:i+15]["close"]
+    if future_df.empty:
+        return None
 
-        if future_prices.empty:
-            continue
+    final_price = future_df.iloc[-1]["close"]
+    total_return = (final_price - entry_price) / entry_price
 
-        # ✅ 總報酬
-        final_price = future_prices.iloc[-1]
-        total_return = (final_price - entry_price) / entry_price
-        returns.append(total_return)
+    max_drawdown = (future_df["close"].min() - entry_price) / entry_price
 
-        # ✅ 最大回檔
-        max_drawdown = (future_prices.min() - entry_price) / entry_price
-        max_drawdowns.append(max_drawdown)
+    win_day = 15
+    for j, close in enumerate(future_df["close"]):
+        if (close - entry_price) / entry_price > 0.05:
+            win_day = j + 1
+            break
 
-        # ✅ 幾天內達成 5% 報酬
-        win_day = 15
-        for j, ret in enumerate((future_prices - entry_price) / entry_price):
-            if ret > 0.05:
-                win_day = j + 1
-                break
-        win_days.append(win_day)
-
-    if len(returns) == 0:
-        return 0, 0, 0, 0
-
-    win_rate = sum(r > 0.05 for r in returns) / len(returns)
-    avg_return = sum(returns) / len(returns)
-    max_dd = min(max_drawdowns)
-    avg_hold_days = sum(win_days) / len(win_days)
-
-    return win_rate, avg_return * 100, max_dd * 100, avg_hold_days
+    # ✅ 回傳一筆交易資料
+    return {
+        "進場日": entry_date.strftime("%Y-%m-%d"),
+        "進場價": round(entry_price, 2),
+        "出場日": future_df.index[-1].strftime("%Y-%m-%d"),
+        "出場價": round(final_price, 2),
+        "總報酬": round(total_return * 100, 2),
+        "最大回檔": round(max_drawdown * 100, 2),
+        "達標天數": win_day
+    }
 
 # --- UI ---
 st.set_page_config(page_title="進階條件選股", layout="wide")
