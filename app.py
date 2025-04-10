@@ -12,7 +12,6 @@ def login_and_fetch_info():
     api = DataLoader()
     api.login(user_id="wmidogq55", password="single0829")
     stock_info = api.taiwan_stock_info()
-    
     etf_keywords = "ETF|基金|元大|富邦|群益|國泰|中信|兆豐|永豐|第一金|統一|凱基"
     stock_info = stock_info[
         (stock_info["stock_id"].str.len() == 4) &
@@ -32,8 +31,6 @@ def get_price_data(api, stock_id):
 # --- 回測引擎 ---
 def backtest_signals(df):
     signals = df[(df["RSI"] < 30) & (df["close"] > df["SMA20"]) & (df["MACD_cross"])]
-    print(f"共回測 {len(signals)} 筆訊號，勝率={win_rate:.2f}, 報酬={avg_return:.2f}")
-
     if signals.empty:
         return 0, 0, 0, 0
 
@@ -44,13 +41,11 @@ def backtest_signals(df):
     for i, row in signals.iterrows():
         entry_price = row["close"]
         future_prices = df.loc[i+1:i+15]["close"]
-
         if future_prices.empty:
             continue
 
         future_return = (future_prices - entry_price) / entry_price
         returns.append(future_return.iloc[-1])
-
         max_drawdown = (future_prices.min() - entry_price) / entry_price
         max_drawdowns.append(max_drawdown)
 
@@ -69,6 +64,7 @@ def backtest_signals(df):
     max_dd = min(max_drawdowns)
     avg_hold_days = sum(win_days) / len(win_days)
 
+    print(f"✅ 共回測 {len(signals)} 筆訊號，勝率={win_rate:.2f}, 報酬={avg_return*100:.2f}%")
     return win_rate, avg_return * 100, max_dd * 100, avg_hold_days
 
 # --- UI ---
@@ -94,6 +90,7 @@ if "stop_flag" not in st.session_state:
 
 run_button = st.button("🚀 開始選股")
 stop_button = st.button("⛔ 停止掃描")
+
 if stop_button:
     st.session_state.stop_flag = True
 
@@ -109,7 +106,6 @@ if run_button:
         try:
             status.text(f"正在分析第 {i+1} 檔：{stock_id}")
             progress.progress((i + 1) / len(stock_ids))
-
             df = get_price_data(api, stock_id)
             if df.empty or len(df) < 60:
                 continue
@@ -135,7 +131,6 @@ if run_button:
         if cond_price60 and today["close"] >= 60: continue
 
         win_rate, avg_return, max_dd, avg_days = backtest_signals(df)
-
         if cond_win and win_rate < 0.8: continue
         if cond_return and avg_return < 5: continue
 
@@ -149,14 +144,20 @@ if run_button:
 
         if st.session_state.stop_flag:
             progress.empty()
+            if results:
+                df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
+                st.success(f"✅ 掃描已中止，共找到 {len(df_result)} 檔個股")
+                st.dataframe(df_result)
+            else:
+                st.warning("⚠️ 掃描已中止，今天沒有符合條件的進場個股。")
+            break
+
+    # 若沒被中斷，則掃描結束時顯示結果
+    if not st.session_state.stop_flag:
+        progress.empty()
         if results:
             df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
             st.success(f"✅ 完成，共找到 {len(df_result)} 檔個股")
             st.dataframe(df_result)
         else:
             st.warning("今天沒有符合條件的進場個股。")
-            if st.session_state.stop_flag:
-                st.warning("⚠️ 掃描已手動中止")
-            break
-
-    
