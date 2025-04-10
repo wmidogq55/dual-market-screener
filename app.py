@@ -4,7 +4,7 @@ import random
 import datetime
 from FinMind.data import DataLoader
 from ta.momentum import RSIIndicator
-from ta.trend import MACD, SMAIndicator
+from ta.trend import MACD
 
 # --- 快取 API 登入與股票清單 ---
 @st.cache_data(ttl=3600)
@@ -15,11 +15,10 @@ def login_and_fetch_info():
     
     etf_keywords = "ETF|基金|元大|富邦|群益|國泰|中信|兆豐|永豐|第一金|統一|凱基"
     stock_info = stock_info[
-        (stock_info["stock_id"].str.len() == 4) &  # 股票代號長度為4
-        (stock_info["type"].isin(["tw", "tpex"])) &  # 只保留上市、上櫃
+        (stock_info["stock_id"].str.len() == 4) &
+        (stock_info["type"].isin(["tw", "tpex"])) &
         ~stock_info["stock_name"].str.contains(etf_keywords)
     ]
-
     return api, stock_info
 
 def get_price_data(api, stock_id):
@@ -30,8 +29,48 @@ def get_price_data(api, stock_id):
     )
     return df
 
+# --- 回測引擎 ---
+def backtest_signals(df):
+    signals = df[(df["RSI"] < 30) & (df["close"] > df["SMA20"]) & (df["MACD_cross"])]
 
-# --- 條件選單 UI ---
+    if signals.empty:
+        return 0, 0, 0, 0
+
+    returns = []
+    max_drawdowns = []
+    win_days = []
+
+    for i, row in signals.iterrows():
+        entry_price = row["close"]
+        future_prices = df.loc[i+1:i+15]["close"]
+
+        if future_prices.empty:
+            continue
+
+        future_return = (future_prices - entry_price) / entry_price
+        returns.append(future_return.iloc[-1])
+
+        max_drawdown = (future_prices.min() - entry_price) / entry_price
+        max_drawdowns.append(max_drawdown)
+
+        win_day = 15
+        for j, ret in enumerate(future_return):
+            if ret > 0.05:
+                win_day = j + 1
+                break
+        win_days.append(win_day)
+
+    if len(returns) == 0:
+        return 0, 0, 0, 0
+
+    win_rate = sum(r > 0.05 for r in returns) / len(returns)
+    avg_return = sum(returns) / len(returns)
+    max_dd = min(max_drawdowns)
+    avg_hold_days = sum(win_days) / len(win_days)
+
+    return win_rate, avg_return * 100, max_dd * 100, avg_hold_days
+
+# --- UI ---
 st.set_page_config(page_title="進階條件選股", layout="wide")
 st.title("📈 全台股進階策略選股系統")
 st.markdown("### 📌 選擇篩選條件")
@@ -54,13 +93,11 @@ if "stop_flag" not in st.session_state:
 
 run_button = st.button("🚀 開始選股")
 stop_button = st.button("⛔ 停止掃描")
-
 if stop_button:
     st.session_state.stop_flag = True
 
 if run_button:
     st.session_state.stop_flag = False
-    
     api, stock_info = login_and_fetch_info()
     stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
     results = []
@@ -68,12 +105,10 @@ if run_button:
     status = st.empty()
 
     for i, stock_id in enumerate(stock_ids):
-    
         try:
-            print(f"開始分析：{stock_id}")
             status.text(f"正在分析第 {i+1} 檔：{stock_id}")
             progress.progress((i + 1) / len(stock_ids))
-        
+
             df = get_price_data(api, stock_id)
             if df.empty or len(df) < 60:
                 continue
@@ -82,8 +117,7 @@ if run_button:
             continue
 
         df["close"] = df["close"].astype(float)
-        df["close"] = df["close"].fillna(method="ffill") 
-        df["close"] = df["close"].fillna(method="bfill") 
+        df["close"] = df["close"].fillna(method="ffill").fillna(method="bfill")
         df["RSI"] = RSIIndicator(df["close"]).rsi()
         macd = MACD(df["close"])
         df["MACD_diff"] = macd.macd_diff()
@@ -92,30 +126,18 @@ if run_button:
         df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
         df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
 
-        # 今日條件
         today = df.iloc[-1]
-        pass_cond = True
-        if cond_rsi and today["RSI"] >= 30:
-            pass_cond = False
-        if cond_macd and not today["MACD_cross"]:
-            pass_cond = False
-        if cond_break_ma and today["close"] < today["SMA20"]:
-            pass_cond = False
-        if cond_vol and not today["vol_up"]:
-            pass_cond = False
-        if cond_price60 and today["close"] >= 60:
-            pass_cond = False
+        if cond_rsi and today["RSI"] >= 30: continue
+        if cond_macd and not today["MACD_cross"]: continue
+        if cond_break_ma and today["close"] < today["SMA20"]: continue
+        if cond_vol and not today["vol_up"]: continue
+        if cond_price60 and today["close"] >= 60: continue
 
-        if not pass_cond:
-            continue
-
-        # 回測勝率條件（固定用 RSI<30 + 突破20MA）
         win_rate, avg_return, max_dd, avg_days = backtest_signals(df)
-        
-        if cond_win and win_rate < 0.8:
-            continue
-        if cond_return and avg_return < 5:
-            continue
+
+        if cond_win and win_rate < 0.8: continue
+        if cond_return and avg_return < 5: continue
+
         results.append({
             "股票代號": stock_id,
             "勝率": round(win_rate, 2),
@@ -123,74 +145,9 @@ if run_button:
             "最大回檔": round(max_dd, 2),
             "平均持有天數": round(avg_days, 1)
         })
-        
-        win_rate = signals["win"].mean()
-        avg_return = signals["future_return"].mean() * 100
 
-        if cond_win and win_rate < 0.8:
-            continue
-        if cond_return and avg_return < 5:
-            continue
-
-        results.append({
-            "股票代號": stock_id,
-            "勝率": round(win_rate, 2),
-            "平均報酬": round(avg_return, 2)
-        })
-        
-        if st.session_state.stop_flag:  # ✅ 縮排對齊了
-            progress.empty()
-            if results:
-                df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
-                st.success(f"✅ 完成，共找到 {len(df_result)} 檔個股")
-                st.dataframe(df_result)
-            else:
-                st.warning("今天沒有符合條件的進場個股。")
-            st.warning("⚠️ 掃描已手動中止")
+        if st.session_state.stop_flag:
             break
-    
-        progress.progress((i + 1) / len(stock_ids))
-        status.text(f"正在分析第 {i + 1} 檔：{stock_id}")
-
-def backtest_signals(df):
-    signals = df[(df["RSI"] < 30) & (df["close"] > df["SMA20"]) & (df["MACD_cross"])]
-
-    if signals.empty:
-        return 0, 0, 0, 0
-
-    returns = []
-    max_drawdowns = []
-    win_days = []
-
-    for i, row in signals.iterrows():
-        entry_price = row["close"]
-        future_prices = df.loc[i+1:i+15]["close"]
-
-        if future_prices.empty:
-            continue
-
-        future_return = (future_prices - entry_price) / entry_price
-        returns.append(future_return.iloc[-1])  # 第15天報酬（不管有沒有達成）
-
-        max_drawdown = (future_prices.min() - entry_price) / entry_price
-        max_drawdowns.append(max_drawdown)
-
-        win_day = 15
-        for j, ret in enumerate(future_return):
-            if ret > 0.05:
-                win_day = j + 1
-                break
-        win_days.append(win_day)
-
-    if len(returns) == 0:
-        return 0, 0, 0, 0
-
-    win_rate = sum(r > 0.05 for r in returns) / len(returns)
-    avg_return = sum(returns) / len(returns)
-    max_dd = min(max_drawdowns)
-    avg_hold_days = sum(win_days) / len(win_days)
-
-    return win_rate, avg_return * 100, max_dd * 100, avg_hold_days
 
     progress.empty()
     if results:
@@ -199,3 +156,5 @@ def backtest_signals(df):
         st.dataframe(df_result)
     else:
         st.warning("今天沒有符合條件的進場個股。")
+        if st.session_state.stop_flag:
+            st.warning("⚠️ 掃描已手動中止")
