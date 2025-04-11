@@ -101,8 +101,6 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
 st.set_page_config(page_title="進階條件選股", layout="wide")
 st.title("📈 全台股進階策略選股系統")
 st.markdown("### 📌 選擇篩選條件")
-st.subheader("📋 階段一：低基期觀察清單")
-st.dataframe(watchlist_df)
 
 if watchlist_df.empty:
     st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
@@ -147,6 +145,9 @@ if run_button:
         get_institution_data=lambda stock_id: get_institution_data(api, stock_id)
     )    
     
+    st.subheader("📋 階段一：低基期觀察清單")
+    st.dataframe(watchlist_df)
+
 if watchlist_df.empty:
     st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
     st.stop()
