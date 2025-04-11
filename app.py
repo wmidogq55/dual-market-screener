@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 import datetime
+from stage1_filter import get_watchlist
 from FinMind.data import DataLoader
 from ta.momentum import RSIIndicator
 from ta.trend import MACD
@@ -27,6 +28,29 @@ def get_price_data(api, stock_id):
         end_date=datetime.date.today().isoformat()
     )
     return df
+
+def get_institution_data(api, stock_id):
+    import datetime
+    df = api.taiwan_stock_institutional_investors(
+        stock_id=stock_id,
+        start_date=(datetime.date.today() - datetime.timedelta(days=10)).isoformat(),
+        end_date=datetime.date.today().isoformat()
+    )
+    if df.empty:
+        return pd.DataFrame()
+
+    df = df[df["institutional_investor"].isin([
+        "Foreign_Investor", "Investment_Trust", "Dealer_Self", "Dealer_Hedging"
+    ])]
+    pivot = df.pivot_table(
+        index="date",
+        columns="institutional_investor",
+        values="buy_sell",
+        aggfunc="sum"
+    ).fillna(0)
+
+    pivot["three_investors_net"] = pivot.sum(axis=1)
+    return pivot.reset_index()
 
 # --- 回測引擎 ---
 def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
@@ -108,6 +132,16 @@ if run_button:
     progress = st.progress(0)
     status = st.empty()
 
+    # ✅ 這裡開始觀察股清單
+    watchlist_df = get_watchlist(
+        stock_list=stock_ids,
+        get_price_data=lambda stock_id: get_price_data(api, stock_id),
+        get_institution_data=lambda stock_id: get_institution_data(api, stock_id)
+    )    
+
+    st.subheader("📋 低基期觀察股清單")
+    st.dataframe(watchlist_df)
+    
     for i, stock_id in enumerate(stock_ids):
         try:
             status.text(f"正在分析第 {i+1} 檔：{stock_id}")
