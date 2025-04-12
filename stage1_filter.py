@@ -22,15 +22,19 @@ def get_watchlist(
                 continue
 
             df["close"] = df["close"].astype(float)
-            df["RSI"] = RSIIndicator(df["close"]).rsi()
-            df["SMA60"] = df["close"].rolling(window=60).mean()
+
+            # 計算 RSI 與 SMA60（視需要計算）
+            if use_rsi:
+                df["RSI"] = RSIIndicator(df["close"]).rsi()
+            if use_kd:
+                df["SMA60"] = df["close"].rolling(window=60).mean()
 
             today = df.iloc[-1]
 
-            # 條件初始化與安全處理
             cond_rsi = today["RSI"] < 30 if use_rsi else True
             cond_price = today["close"] < today["SMA60"] if use_kd else True
 
+            # 法人資料
             cond_foreign = True
             if use_foreign:
                 legal = get_institution_data(stock_id)
@@ -40,10 +44,10 @@ def get_watchlist(
                     legal3 = legal.tail(3)
                     cond_foreign = legal3["three_investors_net"].sum() > 0
 
-            # 先做簡單三條件：RSI + KD + 法人
+            # 判斷條件是否足夠進 watchlist
             cond_count = sum([cond_rsi, cond_price, cond_foreign])
             required = sum([use_rsi, use_kd, use_foreign])
-            if cond_count >= max(1, required // 2):  # 通過一半以上條件就進 watchlist
+            if cond_count >= max(1, required // 2):  # 至少過半條件
                 watchlist.append({
                     "股票代號": stock_id
                 })
