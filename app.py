@@ -158,13 +158,13 @@ if run_button:
     st.subheader("🚀 階段二：今日可考慮進場標的")
     col1, col2, col3 = st.columns(3)
     with col1:
-        cond_rsi = st.checkbox("RSI < 30")
-        cond_macd = st.checkbox("MACD 黃金交叉")
-        cond_break_ma = st.checkbox("突破 20MA")
+        cond_rsi = st.checkbox("RSI < 30", value=False)
+        cond_macd = st.checkbox("MACD 黃金交叉", value=False)
+        cond_break_ma = st.checkbox("突破 20MA", value=False)
     with col2:
-        cond_vol = st.checkbox("成交量放大")
-        cond_price60 = st.checkbox("股價 < 60 元")
-        cond_foreign = st.checkbox("法人連3日買超")
+        cond_vol = st.checkbox("成交量放大", value=False)
+        cond_price60 = st.checkbox("股價 < 60 元", value=False)
+        cond_foreign = st.checkbox("法人連3日買超", value=False)
     with col3:
         cond_win = st.checkbox("歷史勝率 > 0.8", value=True)
         cond_return = st.checkbox("平均報酬 > 5%", value=True)
