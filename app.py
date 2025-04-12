@@ -173,14 +173,15 @@ if run_button:
         df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
         df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
         
-    if cond_foreign:
-        try:
-            inst_df = get_institution_data(api, stock_id)
-            if inst_df.empty or inst_df["three_investors_net"].tail(3).sum() <= 0:
-                continue
-        except Exception as e:
-            print(f"{stock_id} 法人資料錯誤：{e}")
-            continue
+            if cond_foreign:
+                inst_df = None
+                try:
+                    inst_df = get_institution_data(api, stock_id)
+                except Exception as e:
+                    print(f"{stock_id} 法人資料錯誤：{e}")
+
+                if inst_df is None or inst_df.empty or inst_df["three_investors_net"].tail(3).sum() <= 0:
+                    continue
         
         today = df.iloc[-1]
         if cond_rsi and today["RSI"] >= 30: continue
