@@ -130,10 +130,10 @@ if run_button:
         watch_long_term_weak = st.checkbox("長期低於季線但近期止穩", value=True)
         watch_revenue_up = st.checkbox("近 2~3 月營收月增率轉正", value=True)
         watch_yoy_turn_positive = st.checkbox("YoY 年增率由負轉正", value=True)
-        
-        # ✅ 這裡開始觀察股清單
-     watchlist_df = get_watchlist(
-    　　stock_list=stock_ids,
+
+    # ✅ 開始建立觀察清單
+    watchlist_df = get_watchlist(
+        stock_list=stock_ids,
         get_price_data=lambda stock_id: get_price_data(api, stock_id),
         get_institution_data=lambda stock_id: get_institution_data(api, stock_id),
         use_rsi=watch_rsi,
@@ -144,8 +144,8 @@ if run_button:
         use_revenue_up=watch_revenue_up,
         use_yoy_turn=watch_yoy_turn_positive
     )
-    
-    st.write(f"觀察清單數量：{len(watchlist_df)}") 
+
+    st.write(f"觀察清單數量：{len(watchlist_df)}")
     st.subheader("📋 階段一：低基期觀察清單")
     st.dataframe(watchlist_df)
 
