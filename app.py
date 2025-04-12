@@ -144,7 +144,9 @@ if run_button:
         use_revenue_up=watch_revenue_up,
         use_yoy_turn=watch_yoy_turn_positive
     )
-
+    
+    st.write("watch_rsi =", watch_rsi)
+    st.write("get_watchlist =", get_watchlist)
     st.write(f"觀察清單數量：{len(watchlist_df)}")
     st.subheader("📋 階段一：低基期觀察清單")
     st.dataframe(watchlist_df)
