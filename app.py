@@ -102,10 +102,6 @@ st.set_page_config(page_title="進階條件選股", layout="wide")
 st.title("📈 全台股進階策略選股系統")
 st.markdown("### 📌 選擇篩選條件")
 
-if watchlist_df.empty:
-    st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
-    st.stop()
-
 st.subheader("🚀 階段二：今日可考慮進場標的")
 
 col1, col2, col3 = st.columns(3)
@@ -147,10 +143,10 @@ if run_button:
     
     st.subheader("📋 階段一：低基期觀察清單")
     st.dataframe(watchlist_df)
-
-if watchlist_df.empty:
-    st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
-    st.stop()
+    
+    if watchlist_df.empty:
+        st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
+        st.stop()
     
     st.subheader("📋 低基期觀察股清單")
     st.dataframe(watchlist_df)
