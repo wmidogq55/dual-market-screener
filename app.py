@@ -120,7 +120,7 @@ if run_button:
     progress = st.progress(0)
     status = st.empty()
     
-　　st.markdown("### 🧪 第一階段觀察條件（可自選篩選）")
+    st.markdown("### 🧪 第一階段觀察條件 (可自選篩選)")
 
     with st.expander("🛠️ 展開設定觀察條件"):
         watch_rsi = st.checkbox("RSI < 30", value=True)
