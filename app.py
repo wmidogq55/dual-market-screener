@@ -131,7 +131,7 @@ if run_button:
         watch_revenue_up = st.checkbox("近 2~3 月營收月增率轉正", value=True)
         watch_yoy_turn_positive = st.checkbox("YoY 年增率由負轉正", value=True)
 
-    # ✅ 注意：這一段一定要跟 if run_button 同縮排（四個空格）
+    # ✅ 注意這裡是 if run_button 裡面，但不在 with 裡面
     watchlist_df = get_watchlist(
         stock_list=stock_ids,
         get_price_data=lambda stock_id: get_price_data(api, stock_id),
