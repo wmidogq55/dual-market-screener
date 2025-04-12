@@ -153,35 +153,36 @@ if run_button:
         st.stop()
         
     for i, stock_id in enumerate(watchlist_df["股票代號"]):
+    try:
+        status.text(f"正在分析第 {i+1} 檔：{stock_id}")
+        progress.progress((i + 1) / len(stock_ids))
+        df = get_price_data(api, stock_id)
+        if df.empty or len(df) < 60:
+            continue
+    except Exception as e:
+        print(f"{stock_id} 資料錯誤：{e}")
+        continue
+
+    df["close"] = df["close"].astype(float)
+    df["close"] = df["close"].fillna(method="ffill").fillna(method="bfill")
+    df["RSI"] = RSIIndicator(df["close"]).rsi()
+    macd = MACD(df["close"])
+    df["MACD_diff"] = macd.macd_diff()
+    df["MACD_cross"] = (df["MACD_diff"].shift(1) < 0) & (df["MACD_diff"] > 0)
+    df["SMA20"] = df["close"].rolling(window=20).mean()
+    df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
+    df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
+
+    # ✅ 法人資料處理（在迴圈內，但縮排正確）
+    if cond_foreign:
+        inst_df = None
         try:
-            status.text(f"正在分析第 {i+1} 檔：{stock_id}")
-            progress.progress((i + 1) / len(stock_ids))
-            df = get_price_data(api, stock_id)
-            if df.empty or len(df) < 60:
+            inst_df = get_institution_data(api, stock_id)
+            if inst_df is None or inst_df.empty or inst_df["three_investors_net"].tail(3).sum() <= 0:
                 continue
         except Exception as e:
-            print(f"{stock_id} 資料錯誤：{e}")
+            print(f"{stock_id} 法人資料錯誤：{e}")
             continue
-
-        df["close"] = df["close"].astype(float)
-        df["close"] = df["close"].fillna(method="ffill").fillna(method="bfill")
-        df["RSI"] = RSIIndicator(df["close"]).rsi()
-        macd = MACD(df["close"])
-        df["MACD_diff"] = macd.macd_diff()
-        df["MACD_cross"] = (df["MACD_diff"].shift(1) < 0) & (df["MACD_diff"] > 0)
-        df["SMA20"] = df["close"].rolling(window=20).mean()
-        df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
-        df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
-        
-            if cond_foreign:
-                inst_df = None
-                try:
-                    inst_df = get_institution_data(api, stock_id)
-                except Exception as e:
-                    print(f"{stock_id} 法人資料錯誤：{e}")
-
-                if inst_df is None or inst_df.empty or inst_df["three_investors_net"].tail(3).sum() <= 0:
-                    continue
         
         today = df.iloc[-1]
         if cond_rsi and today["RSI"] >= 30: continue
