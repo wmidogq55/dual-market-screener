@@ -155,17 +155,18 @@ if run_button:
 
     for i, stock_id in enumerate(watchlist_df["股票代號"]):
         try:
-            status.text(f"正在分析第 {i+1} 檔：{stock_id}")
-            progress.progress((i + 1) / len(watchlist_df))
+            status.text(f"正在抓取 {stock_id} 股價資料")  # ✅ 用 status 顯示，不干擾畫面
+            progress.progress((i + 1) / len(watchlist_df))  # ✅ 正常更新進度條
+    
             df = get_price_data(api, stock_id)
             if df.empty or len(df) < 60:
                 continue
         except Exception as e:
             st.error(f"⚠️ 錯誤：{e}")
             st.text(traceback.format_exc())
-            print(f"{stock_id} 資料錯誤：{e}")  # 放在 continue 之前
+            print(f"{stock_id} 資料錯誤：{e}")  # 這個保留給 Console 看
             continue
-
+    
         df["close"] = df["close"].astype(float)
         df["close"] = df["close"].fillna(method="ffill").fillna(method="bfill")
         df["RSI"] = RSIIndicator(df["close"]).rsi()
@@ -175,7 +176,7 @@ if run_button:
         df["SMA20"] = df["close"].rolling(window=20).mean()
         df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
         df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
-
+    
         if cond_foreign:
             inst_df = None
             try:
@@ -185,26 +186,26 @@ if run_button:
             except Exception as e:
                 print(f"{stock_id} 法人資料錯誤：{e}")
                 continue
-
+    
         today = df.iloc[-1]
         if cond_rsi and today["RSI"] >= 30: continue
         if cond_macd and not today["MACD_cross"]: continue
         if cond_break_ma and today["close"] < today["SMA20"]: continue
         if cond_vol and not today["vol_up"]: continue
         if cond_price60 and today["close"] >= 60: continue
-
+    
         win_rate, avg_return, max_dd, avg_days = backtest_signals(
             df,
             use_rsi=cond_rsi,
             use_ma=cond_break_ma,
             use_macd=cond_macd
         )
-
+    
         if cond_win and win_rate < 0.8:
             continue
         if cond_return and avg_return < 5:
             continue
-
+    
         results.append({
             "股票代號": stock_id,
             "勝率": round(win_rate, 2),
@@ -212,7 +213,7 @@ if run_button:
             "最大回檔": round(max_dd, 2),
             "平均持有天數": round(avg_days, 1)
         })
-
+    
         if st.session_state.stop_flag:
             progress.empty()
             if results:
