@@ -153,15 +153,15 @@ if run_button:
         st.stop()
         
     for i, stock_id in enumerate(watchlist_df["股票代號"]):
-    try:
-        status.text(f"正在分析第 {i+1} 檔：{stock_id}")
-        progress.progress((i + 1) / len(stock_ids))
-        df = get_price_data(api, stock_id)
-        if df.empty or len(df) < 60:
+        try:
+            status.text(f"正在分析第 {i+1} 檔：{stock_id}")
+            progress.progress((i + 1) / len(stock_ids))
+            df = get_price_data(api, stock_id)
+            if df.empty or len(df) < 60:
+                continue
+        except Exception as e:
+            print(f"{stock_id} 資料錯誤：{e}")
             continue
-    except Exception as e:
-        print(f"{stock_id} 資料錯誤：{e}")
-        continue
 
     df["close"] = df["close"].astype(float)
     df["close"] = df["close"].fillna(method="ffill").fillna(method="bfill")
