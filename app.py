@@ -22,6 +22,7 @@ def login_and_fetch_info():
     return api, stock_info
 
 def get_price_data(api, stock_id):
+    st.write(f"正在抓取 {stock_id} 股價資料")
     df = api.taiwan_stock_daily(
         stock_id=stock_id,
         start_date=(datetime.date.today() - datetime.timedelta(days=365)).isoformat(),
@@ -158,6 +159,9 @@ if run_button:
             if df.empty or len(df) < 60:
                 continue
         except Exception as e:
+            st.error(f"⚠️ 錯誤：{e}")
+            st.text(traceback.format_exc())  # 印出完整堆疊錯誤訊息
+            continue
             print(f"{stock_id} 資料錯誤：{e}")
             continue
 
