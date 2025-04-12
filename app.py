@@ -223,7 +223,7 @@ if run_button:
                 st.warning("⚠️ 掃描已中止，今天沒有符合條件的進場個股。")
             break
             
-progress.empty()
+    progress.empty()
     if results:
         df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
         st.success(f"✅ 掃描完成，共找到 {len(df_result)} 檔個股")
