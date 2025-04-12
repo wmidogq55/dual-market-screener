@@ -125,7 +125,8 @@ if run_button:
         get_price_data=lambda stock_id: get_price_data(api, stock_id),
         get_institution_data=lambda stock_id: get_institution_data(api, stock_id)
     )
-
+    
+    st.write(f"觀察清單數量：{len(watchlist_df)}") 
     st.subheader("📋 階段一：低基期觀察清單")
     st.dataframe(watchlist_df)
 
