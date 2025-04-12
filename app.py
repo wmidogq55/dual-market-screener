@@ -102,21 +102,6 @@ st.set_page_config(page_title="進階條件選股", layout="wide")
 st.title("📈 全台股進階策略選股系統")
 st.markdown("### 📌 選擇篩選條件")
 
-st.subheader("🚀 階段二：今日可考慮進場標的")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    cond_rsi = st.checkbox("RSI < 30")
-    cond_macd = st.checkbox("MACD 黃金交叉")
-    cond_break_ma = st.checkbox("突破 20MA")
-with col2:
-    cond_vol = st.checkbox("成交量放大")
-    cond_price60 = st.checkbox("股價 < 60 元")
-    cond_foreign = st.checkbox("法人連3日買超")
-with col3:
-    cond_win = st.checkbox("歷史勝率 > 0.8", value=True)
-    cond_return = st.checkbox("平均報酬 > 5%", value=True)
-
 if "stop_flag" not in st.session_state:
     st.session_state.stop_flag = False
 
@@ -128,6 +113,7 @@ if stop_button:
 
 if run_button:
     st.session_state.stop_flag = False
+    
     api, stock_info = login_and_fetch_info()
     stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
     results = []
@@ -148,9 +134,24 @@ if run_button:
         st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
         st.stop()
     
-    st.subheader("📋 低基期觀察股清單")
-    st.dataframe(watchlist_df)
-    
+    st.subheader("🚀 階段二：今日可考慮進場標的")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        cond_rsi = st.checkbox("RSI < 30")
+        cond_macd = st.checkbox("MACD 黃金交叉")
+        cond_break_ma = st.checkbox("突破 20MA")
+    with col2:
+        cond_vol = st.checkbox("成交量放大")
+        cond_price60 = st.checkbox("股價 < 60 元")
+        cond_foreign = st.checkbox("法人連3日買超")
+    with col3:
+        cond_win = st.checkbox("歷史勝率 > 0.8", value=True)
+        cond_return = st.checkbox("平均報酬 > 5%", value=True)
+        
+    if not any([cond_rsi, cond_macd, cond_break_ma, cond_vol, cond_price60, cond_foreign]):
+        st.warning("⚠️ 請至少勾選一個進場條件")
+        st.stop()
+        
     for i, stock_id in enumerate(watchlist_df["股票代號"]):
         try:
             status.text(f"正在分析第 {i+1} 檔：{stock_id}")
@@ -171,7 +172,16 @@ if run_button:
         df["SMA20"] = df["close"].rolling(window=20).mean()
         df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
         df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
-
+        
+    if cond_foreign:
+        try:
+            inst_df = get_institution_data(api, stock_id)
+            if inst_df.empty or inst_df["three_investors_net"].tail(3).sum() <= 0:
+                continue
+        except Exception as e:
+            print(f"{stock_id} 法人資料錯誤：{e}")
+            continue
+        
         today = df.iloc[-1]
         if cond_rsi and today["RSI"] >= 30: continue
         if cond_macd and not today["MACD_cross"]: continue
