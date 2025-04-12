@@ -104,6 +104,8 @@ st.markdown("### 📌 選擇篩選條件")
 
 if "stop_flag" not in st.session_state:
     st.session_state.stop_flag = False
+if "has_run" not in st.session_state:
+    st.session_state.has_run = False
 
 run_button = st.button("🚀 開始選股")
 stop_button = st.button("⛔ 停止掃描")
@@ -113,7 +115,9 @@ if stop_button:
 
 if run_button:
     st.session_state.stop_flag = False
-
+    st.session_state.has_run = True
+    
+if st.session_state.has_run:
     api, stock_info = login_and_fetch_info()
     stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
     results = []
@@ -121,7 +125,9 @@ if run_button:
     status = st.empty()
 
     st.markdown("### 🧪 第一階段觀察條件 (可自選篩選)")
-
+    if "has_run" not in st.session_state:
+        st.session_state.has_run = False
+        
     with st.expander("🛠️ 展開設定觀察條件"):
         watch_rsi = st.checkbox("RSI < 30", value=True)
         watch_kd = st.checkbox("月 KD < 20 且黃金交叉", value=True)
