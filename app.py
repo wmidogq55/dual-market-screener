@@ -120,7 +120,7 @@ if run_button:
     progress = st.progress(0)
     status = st.empty()
     
-st.markdown("### 🧪 第一階段觀察條件（可自選篩選）")
+　　st.markdown("### 🧪 第一階段觀察條件（可自選篩選）")
 
     with st.expander("🛠️ 展開設定觀察條件"):
         watch_rsi = st.checkbox("RSI < 30", value=True)
@@ -132,8 +132,8 @@ st.markdown("### 🧪 第一階段觀察條件（可自選篩選）")
         watch_yoy_turn_positive = st.checkbox("YoY 年增率由負轉正", value=True)
         
         # ✅ 這裡開始觀察股清單
-        watchlist_df = get_watchlist(
-        stock_list=stock_ids,
+     watchlist_df = get_watchlist(
+    　　stock_list=stock_ids,
         get_price_data=lambda stock_id: get_price_data(api, stock_id),
         get_institution_data=lambda stock_id: get_institution_data(api, stock_id),
         use_rsi=watch_rsi,
