@@ -131,19 +131,19 @@ if run_button:
         watch_revenue_up = st.checkbox("近 2~3 月營收月增率轉正", value=True)
         watch_yoy_turn_positive = st.checkbox("YoY 年增率由負轉正", value=True)
 
-        # ✅ get_watchlist 呼叫要縮排在這裡面
-watchlist_df = get_watchlist(
-    stock_list=stock_ids,
-    get_price_data=lambda stock_id: get_price_data(api, stock_id),
-    get_institution_data=lambda stock_id: get_institution_data(api, stock_id),
-    use_rsi=watch_rsi,
-    use_kd=watch_kd,
-    use_foreign=watch_foreign,
-    use_sideways=watch_sideways,
-    use_long_weak=watch_long_term_weak,
-    use_revenue_up=watch_revenue_up,
-    use_yoy_turn=watch_yoy_turn_positive
-)
+    # ✅ 注意！這一段要「縮排與 if run_button 同層」，**不要放進 with 裡面**
+    watchlist_df = get_watchlist(
+        stock_list=stock_ids,
+        get_price_data=lambda stock_id: get_price_data(api, stock_id),
+        get_institution_data=lambda stock_id: get_institution_data(api, stock_id),
+        use_rsi=watch_rsi,
+        use_kd=watch_kd,
+        use_foreign=watch_foreign,
+        use_sideways=watch_sideways,
+        use_long_weak=watch_long_term_weak,
+        use_revenue_up=watch_revenue_up,
+        use_yoy_turn=watch_yoy_turn_positive
+    )
 
     st.write(f"觀察清單數量：{len(watchlist_df)}")
     st.subheader("📋 階段一：低基期觀察清單")
