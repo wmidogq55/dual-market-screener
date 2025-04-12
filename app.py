@@ -30,7 +30,6 @@ def get_price_data(api, stock_id):
     return df
 
 def get_institution_data(api, stock_id):
-    import datetime
     df = api.taiwan_stock_institutional_investors(
         stock_id=stock_id,
         start_date=(datetime.date.today() - datetime.timedelta(days=10)).isoformat(),
@@ -48,7 +47,6 @@ def get_institution_data(api, stock_id):
         values="buy_sell",
         aggfunc="sum"
     ).fillna(0)
-
     pivot["three_investors_net"] = pivot.sum(axis=1)
     return pivot.reset_index()
 
@@ -88,7 +86,7 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
 
     if len(returns) == 0:
         return 0, 0, 0, 0
-        
+
     win_rate = sum(r > 0.05 for r in returns) / len(returns)
     avg_return = sum(returns) / len(returns)
     max_dd = min(max_drawdowns)
@@ -113,7 +111,7 @@ if stop_button:
 
 if run_button:
     st.session_state.stop_flag = False
-    
+
     api, stock_info = login_and_fetch_info()
     stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
     results = []
@@ -125,15 +123,15 @@ if run_button:
         stock_list=stock_ids,
         get_price_data=lambda stock_id: get_price_data(api, stock_id),
         get_institution_data=lambda stock_id: get_institution_data(api, stock_id)
-    )    
-    
+    )
+
     st.subheader("📋 階段一：低基期觀察清單")
     st.dataframe(watchlist_df)
-    
+
     if watchlist_df.empty:
         st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
         st.stop()
-    
+
     st.subheader("🚀 階段二：今日可考慮進場標的")
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -151,38 +149,38 @@ if run_button:
     if not any([cond_rsi, cond_macd, cond_break_ma, cond_vol, cond_price60, cond_foreign]):
         st.warning("⚠️ 請至少勾選一個進場條件")
         st.stop()
-        
-for i, stock_id in enumerate(watchlist_df["股票代號"]):
-    try:
-        status.text(f"正在分析第 {i+1} 檔：{stock_id}")
-        progress.progress((i + 1) / len(stock_ids))
-        df = get_price_data(api, stock_id)
-        if df.empty or len(df) < 60:
-            continue
-    except Exception as e:
-        print(f"{stock_id} 資料錯誤：{e}")
-        continue
 
-    df["close"] = df["close"].astype(float)
-    df["close"] = df["close"].fillna(method="ffill").fillna(method="bfill")
-    df["RSI"] = RSIIndicator(df["close"]).rsi()
-    macd = MACD(df["close"])
-    df["MACD_diff"] = macd.macd_diff()
-    df["MACD_cross"] = (df["MACD_diff"].shift(1) < 0) & (df["MACD_diff"] > 0)
-    df["SMA20"] = df["close"].rolling(window=20).mean()
-    df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
-    df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
-
-    if cond_foreign:
-        inst_df = None
+    for i, stock_id in enumerate(watchlist_df["股票代號"]):
         try:
-            inst_df = get_institution_data(api, stock_id)
-            if inst_df is None or inst_df.empty or inst_df["three_investors_net"].tail(3).sum() <= 0:
+            status.text(f"正在分析第 {i+1} 檔：{stock_id}")
+            progress.progress((i + 1) / len(watchlist_df))
+            df = get_price_data(api, stock_id)
+            if df.empty or len(df) < 60:
                 continue
         except Exception as e:
-            print(f"{stock_id} 法人資料錯誤：{e}")
+            print(f"{stock_id} 資料錯誤：{e}")
             continue
-        
+
+        df["close"] = df["close"].astype(float)
+        df["close"] = df["close"].fillna(method="ffill").fillna(method="bfill")
+        df["RSI"] = RSIIndicator(df["close"]).rsi()
+        macd = MACD(df["close"])
+        df["MACD_diff"] = macd.macd_diff()
+        df["MACD_cross"] = (df["MACD_diff"].shift(1) < 0) & (df["MACD_diff"] > 0)
+        df["SMA20"] = df["close"].rolling(window=20).mean()
+        df["vol_mean5"] = df["Trading_Volume"].rolling(5).mean()
+        df["vol_up"] = df["Trading_Volume"] > df["vol_mean5"]
+
+        if cond_foreign:
+            inst_df = None
+            try:
+                inst_df = get_institution_data(api, stock_id)
+                if inst_df is None or inst_df.empty or inst_df["three_investors_net"].tail(3).sum() <= 0:
+                    continue
+            except Exception as e:
+                print(f"{stock_id} 法人資料錯誤：{e}")
+                continue
+
         today = df.iloc[-1]
         if cond_rsi and today["RSI"] >= 30: continue
         if cond_macd and not today["MACD_cross"]: continue
@@ -219,13 +217,3 @@ for i, stock_id in enumerate(watchlist_df["股票代號"]):
             else:
                 st.warning("⚠️ 掃描已中止，今天沒有符合條件的進場個股。")
             break
-
-    # 若沒被中斷，則掃描結束時顯示結果
-    if not st.session_state.stop_flag:
-        progress.empty()
-        if results:
-            df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
-            st.success(f"✅ 完成，共找到 {len(df_result)} 檔個股")
-            st.dataframe(df_result)
-        else:
-            st.warning("今天沒有符合條件的進場個股。")
