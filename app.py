@@ -23,7 +23,7 @@ def login_and_fetch_info():
     return api, stock_info
 
 def get_price_data(api, stock_id):
-    print(f"正在抓取 {stock_id} 股價資料")  # ✅ 移除對 UI 的干擾
+    st.write(f"正在抓取 {stock_id} 股價資料")
     df = api.taiwan_stock_daily(
         stock_id=stock_id,
         start_date=(datetime.date.today() - datetime.timedelta(days=365)).isoformat(),
