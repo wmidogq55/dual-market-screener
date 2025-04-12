@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 import datetime
+import traceback
 from stage1_filter import get_watchlist
 from FinMind.data import DataLoader
 from ta.momentum import RSIIndicator
@@ -161,9 +162,8 @@ if run_button:
                 continue
         except Exception as e:
             st.error(f"⚠️ 錯誤：{e}")
-            st.text(traceback.format_exc())  # 印出完整堆疊錯誤訊息
-            continue
-            print(f"{stock_id} 資料錯誤：{e}")
+            st.text(traceback.format_exc())
+            print(f"{stock_id} 資料錯誤：{e}")  # 放在 continue 之前
             continue
 
         df["close"] = df["close"].astype(float)
@@ -222,3 +222,11 @@ if run_button:
             else:
                 st.warning("⚠️ 掃描已中止，今天沒有符合條件的進場個股。")
             break
+            
+progress.empty()
+    if results:
+        df_result = pd.DataFrame(results).sort_values("平均報酬", ascending=False)
+        st.success(f"✅ 掃描完成，共找到 {len(df_result)} 檔個股")
+        st.dataframe(df_result)
+    else:
+        st.warning("⚠️ 掃描完成，今天沒有符合條件的進場個股。")
