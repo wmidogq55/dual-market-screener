@@ -136,7 +136,13 @@ if run_button:
     progress = st.progress(0)
     status = st.empty()    
     
-    watchlist_df = get_watchlist(
+    st.write("watch_rsi =", watch_rsi)
+    st.write("get_watchlist =", get_watchlist)
+    st.write(f"觀察清單數量：{len(watchlist_df)}")
+    st.subheader("📋 階段一：低基期觀察清單")
+    st.dataframe(watchlist_df)
+    
+    st.session_state.watchlist_df = get_watchlist(
         stock_list=stock_ids,
         get_price_data=lambda stock_id: get_price_data(api, stock_id),
         get_institution_data=lambda stock_id: get_institution_data(api, stock_id),
@@ -148,13 +154,7 @@ if run_button:
         use_revenue_up=watch_revenue_up,
         use_yoy_turn=watch_yoy_turn_positive
     )
-    
-    st.write("watch_rsi =", watch_rsi)
-    st.write("get_watchlist =", get_watchlist)
-    st.write(f"觀察清單數量：{len(watchlist_df)}")
-    st.subheader("📋 階段一：低基期觀察清單")
-    st.dataframe(watchlist_df)
-    
+
 if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
     st.session_state.has_run = True   # ✅ 一進來才標記已經執行
     
