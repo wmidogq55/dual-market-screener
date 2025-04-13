@@ -108,6 +108,16 @@ if "has_run" not in st.session_state:
 st.set_page_config(page_title="進階條件選股", layout="wide")
 st.title("📈 全台股進階策略選股系統")
 st.markdown("### 📌 選擇篩選條件")
+st.markdown("### 🧪 第一階段觀察條件 (可自選篩選)")
+
+with st.expander("🛠️ 展開設定觀察條件"):
+    watch_rsi = st.checkbox("RSI < 30", value=True)
+    watch_kd = st.checkbox("月 KD < 20 且黃金交叉", value=True)
+    watch_foreign = st.checkbox("法人連買（投信連3～5日買超）", value=True)
+    watch_sideways = st.checkbox("股價盤整未突破", value=True)
+    watch_long_term_weak = st.checkbox("長期低於季線但近期止穩", value=True)
+    watch_revenue_up = st.checkbox("近 2~3 月營收月增率轉正", value=True)
+    watch_yoy_turn_positive = st.checkbox("YoY 年增率由負轉正", value=True)
 
 run_button = st.button("🚀 開始選股")
 stop_button = st.button("⛔ 停止掃描")
@@ -128,18 +138,7 @@ if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
     results = []
     progress = st.progress(0)
     status = st.empty()
-
-    st.markdown("### 🧪 第一階段觀察條件 (可自選篩選)")
         
-    with st.expander("🛠️ 展開設定觀察條件"):
-        watch_rsi = st.checkbox("RSI < 30", value=True)
-        watch_kd = st.checkbox("月 KD < 20 且黃金交叉", value=True)
-        watch_foreign = st.checkbox("法人連買（投信連3～5日買超）", value=True)
-        watch_sideways = st.checkbox("股價盤整未突破", value=True)
-        watch_long_term_weak = st.checkbox("長期低於季線但近期止穩", value=True)
-        watch_revenue_up = st.checkbox("近 2~3 月營收月增率轉正", value=True)
-        watch_yoy_turn_positive = st.checkbox("YoY 年增率由負轉正", value=True)
-
     # 注意這段在 if 裡但不在 with 裡
     watchlist_df = get_watchlist(
         stock_list=stock_ids,
