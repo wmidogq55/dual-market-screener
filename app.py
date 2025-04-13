@@ -132,37 +132,7 @@ if run_button:
 
 if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
     st.session_state.has_run = True   # ✅ 一進來才標記已經執行
-
-    api, stock_info = login_and_fetch_info()
-    stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
-    results = []
-    progress = st.progress(0)
-    status = st.empty()
-        
-    # 注意這段在 if 裡但不在 with 裡
-    watchlist_df = get_watchlist(
-        stock_list=stock_ids,
-        get_price_data=lambda stock_id: get_price_data(api, stock_id),
-        get_institution_data=lambda stock_id: get_institution_data(api, stock_id),
-        use_rsi=watch_rsi,
-        use_kd=watch_kd,
-        use_foreign=watch_foreign,
-        use_sideways=watch_sideways,
-        use_long_weak=watch_long_term_weak,
-        use_revenue_up=watch_revenue_up,
-        use_yoy_turn=watch_yoy_turn_positive
-    )
     
-    st.write("watch_rsi =", watch_rsi)
-    st.write("get_watchlist =", get_watchlist)
-    st.write(f"觀察清單數量：{len(watchlist_df)}")
-    st.subheader("📋 階段一：低基期觀察清單")
-    st.dataframe(watchlist_df)
-
-    if watchlist_df.empty:
-        st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
-        st.stop()
-
     st.subheader("🚀 階段二：今日可考慮進場標的")
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -259,3 +229,33 @@ if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
         st.dataframe(df_result)
     else:
         st.warning("⚠️ 掃描完成，今天沒有符合條件的進場個股。")
+        
+    api, stock_info = login_and_fetch_info()
+    stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
+    results = []
+    progress = st.progress(0)
+    status = st.empty()
+        
+    # 注意這段在 if 裡但不在 with 裡
+    watchlist_df = get_watchlist(
+        stock_list=stock_ids,
+        get_price_data=lambda stock_id: get_price_data(api, stock_id),
+        get_institution_data=lambda stock_id: get_institution_data(api, stock_id),
+        use_rsi=watch_rsi,
+        use_kd=watch_kd,
+        use_foreign=watch_foreign,
+        use_sideways=watch_sideways,
+        use_long_weak=watch_long_term_weak,
+        use_revenue_up=watch_revenue_up,
+        use_yoy_turn=watch_yoy_turn_positive
+    )
+    
+    st.write("watch_rsi =", watch_rsi)
+    st.write("get_watchlist =", get_watchlist)
+    st.write(f"觀察清單數量：{len(watchlist_df)}")
+    st.subheader("📋 階段一：低基期觀察清單")
+    st.dataframe(watchlist_df)
+
+    if watchlist_df.empty:
+        st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
+        st.stop()
