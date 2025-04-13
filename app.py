@@ -130,6 +130,12 @@ if run_button:
     st.session_state.has_run = False
     st.session_state.stage = "scan"  # ✅ 這是關鍵
     
+    api, stock_info = login_and_fetch_info()
+    stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
+    results = []
+    progress = st.progress(0)
+    status = st.empty()    
+    
     watchlist_df = get_watchlist(
         stock_list=stock_ids,
         get_price_data=lambda stock_id: get_price_data(api, stock_id),
@@ -248,12 +254,6 @@ if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
         st.dataframe(df_result)
     else:
         st.warning("⚠️ 掃描完成，今天沒有符合條件的進場個股。")
-        
-    api, stock_info = login_and_fetch_info()
-    stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
-    results = []
-    progress = st.progress(0)
-    status = st.empty()
         
     # 注意這段在 if 裡但不在 with 裡
 
