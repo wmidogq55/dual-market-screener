@@ -96,16 +96,18 @@ def backtest_signals(df, use_rsi=True, use_ma=True, use_macd=True):
 
     print(f"✅ 共回測 {len(signals)} 筆訊號，勝率={win_rate:.2f}, 報酬={avg_return * 100:.2f}%")
     return win_rate, avg_return * 100, max_dd * 100, avg_days
+    
+if "stage" not in st.session_state:
+    st.session_state.stage = "setup"  # 初始狀態為「設定條件」
+if "stop_flag" not in st.session_state:
+    st.session_state.stop_flag = False
+if "has_run" not in st.session_state:
+    st.session_state.has_run = False
 
 # --- UI ---
 st.set_page_config(page_title="進階條件選股", layout="wide")
 st.title("📈 全台股進階策略選股系統")
 st.markdown("### 📌 選擇篩選條件")
-
-if "stop_flag" not in st.session_state:
-    st.session_state.stop_flag = False
-if "has_run" not in st.session_state:
-    st.session_state.has_run = False
 
 run_button = st.button("🚀 開始選股")
 stop_button = st.button("⛔ 停止掃描")
@@ -115,9 +117,12 @@ if stop_button:
 
 if run_button:
     st.session_state.stop_flag = False
-    st.session_state.has_run = True
-    
-if st.session_state.has_run:
+    st.session_state.has_run = False
+    st.session_state.stage = "scan"  # ✅ 這是關鍵
+
+if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
+    st.session_state.has_run = True   # ✅ 一進來才標記已經執行
+
     api, stock_info = login_and_fetch_info()
     stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
     results = []
@@ -125,8 +130,6 @@ if st.session_state.has_run:
     status = st.empty()
 
     st.markdown("### 🧪 第一階段觀察條件 (可自選篩選)")
-    if "has_run" not in st.session_state:
-        st.session_state.has_run = False
         
     with st.expander("🛠️ 展開設定觀察條件"):
         watch_rsi = st.checkbox("RSI < 30", value=True)
