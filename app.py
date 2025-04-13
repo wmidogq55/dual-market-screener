@@ -138,9 +138,9 @@ if run_button:
     
     st.write("watch_rsi =", watch_rsi)
     st.write("get_watchlist =", get_watchlist)
-    st.write(f"觀察清單數量：{len(watchlist_df)}")
+    st.write(f"觀察清單數量：{len(st.session_state.watchlist_df)}")
     st.subheader("📋 階段一：低基期觀察清單")
-    st.dataframe(watchlist_df)
+    st.dataframe(st.session_state.watchlist_df)
     
     st.session_state.watchlist_df = get_watchlist(
         stock_list=stock_ids,
@@ -176,7 +176,7 @@ if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
         st.warning("⚠️ 請至少勾選一個進場條件")
         st.stop()
 
-    for i, stock_id in enumerate(watchlist_df["股票代號"]):
+    for i, stock_id in enumerate(st.session_state.watchlist_df["股票代號"]):
         try:
             status.text(f"正在抓取 {stock_id} 股價資料")  # ✅ 用 status 顯示，不干擾畫面
             progress.progress((i + 1) / len(watchlist_df))  # ✅ 正常更新進度條
@@ -257,6 +257,6 @@ if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
         
     # 注意這段在 if 裡但不在 with 裡
 
-    if watchlist_df.empty:
+    if st.session_state.watchlist_df.empty:
         st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
         st.stop()
