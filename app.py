@@ -136,12 +136,6 @@ if run_button:
     progress = st.progress(0)
     status = st.empty()    
     
-    st.write("watch_rsi =", watch_rsi)
-    st.write("get_watchlist =", get_watchlist)
-    st.write(f"觀察清單數量：{len(st.session_state.watchlist_df)}")
-    st.subheader("📋 階段一：低基期觀察清單")
-    st.dataframe(st.session_state.watchlist_df)
-    
     st.session_state.watchlist_df = get_watchlist(
         stock_list=stock_ids,
         get_price_data=lambda stock_id: get_price_data(api, stock_id),
@@ -154,9 +148,22 @@ if run_button:
         use_revenue_up=watch_revenue_up,
         use_yoy_turn=watch_yoy_turn_positive
     )
-
-if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
-    st.session_state.has_run = True   # ✅ 一進來才標記已經執行
+    
+    st.write("watch_rsi =", watch_rsi)
+    st.write("get_watchlist =", get_watchlist)
+    st.write(f"觀察清單數量：{len(st.session_state.watchlist_df)}")
+    st.subheader("📋 階段一：低基期觀察清單")
+    st.dataframe(st.session_state.watchlist_df)
+    
+if st.session_state.stage == "scan" and "watchlist_df" in st.session_state:
+    st.session_state.has_run = True
+    if "watchlist_df" not in st.session_state:
+        st.warning("⚠️ 請先按『開始選股』取得觀察清單。")
+        st.stop()
+        
+    if st.session_state.watchlist_df.empty:
+        st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
+        st.stop()
     
     st.subheader("🚀 階段二：今日可考慮進場標的")
     col1, col2, col3 = st.columns(3)
@@ -179,7 +186,7 @@ if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
     for i, stock_id in enumerate(st.session_state.watchlist_df["股票代號"]):
         try:
             status.text(f"正在抓取 {stock_id} 股價資料")  # ✅ 用 status 顯示，不干擾畫面
-            progress.progress((i + 1) / len(watchlist_df))  # ✅ 正常更新進度條
+            progress.progress((i + 1) / len(st.session_state.watchlist_df))
     
             df = get_price_data(api, stock_id)
             if df.empty or len(df) < 60:
@@ -254,9 +261,3 @@ if st.session_state.stage == "scan":  # ✅ 改這行條件，不能用 has_run
         st.dataframe(df_result)
     else:
         st.warning("⚠️ 掃描完成，今天沒有符合條件的進場個股。")
-        
-    # 注意這段在 if 裡但不在 with 裡
-
-    if st.session_state.watchlist_df.empty:
-        st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
-        st.stop()
