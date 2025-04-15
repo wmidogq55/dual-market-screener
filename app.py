@@ -132,9 +132,7 @@ if run_button:
     
     api, stock_info = login_and_fetch_info()
     stock_ids = random.sample(stock_info["stock_id"].tolist(), 300)
-    results = []
-    progress = st.progress(0)
-    status = st.empty()    
+    results = []   
     
     st.session_state.watchlist_df = get_watchlist(
         stock_list=stock_ids,
@@ -164,6 +162,9 @@ if st.session_state.stage == "scan" and "watchlist_df" in st.session_state:
     if st.session_state.watchlist_df.empty:
         st.warning("⚠️ 今日無符合條件的低基期觀察股，請明日再試")
         st.stop()
+        
+    progress = st.progress(0)
+    status = st.empty() 
     
     st.subheader("🚀 階段二：今日可考慮進場標的")
     col1, col2, col3 = st.columns(3)
