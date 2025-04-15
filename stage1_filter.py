@@ -22,17 +22,27 @@ def get_watchlist(
                 continue
 
             df["close"] = df["close"].astype(float)
+            today = df.iloc[-1]  # ⏩ 提早定義
 
-            # 計算 RSI 與 SMA60（視需要計算）
+            # RSI
+            cond_rsi = True
             if use_rsi:
                 df["RSI"] = RSIIndicator(df["close"]).rsi()
+                cond_rsi = today["RSI"] < 30
+
+            # KD
+            cond_kd = True
             if use_kd:
-                df["SMA60"] = df["close"].rolling(window=60).mean()
-
-            today = df.iloc[-1]
-
-            cond_rsi = today["RSI"] < 30 if use_rsi else True
-            cond_price = today["close"] < today["SMA60"] if use_kd else True
+                low_min = df["low"].rolling(window=9).min()
+                high_max = df["high"].rolling(window=9).max()
+                df["RSV"] = (df["close"] - low_min) / (high_max - low_min) * 100
+                df["K"] = df["RSV"].ewm(com=2).mean()
+                df["D"] = df["K"].ewm(com=2).mean()
+                cond_kd = (
+                    (df["K"].iloc[-1] < 20) and
+                    (df["K"].iloc[-2] < df["D"].iloc[-2]) and
+                    (df["K"].iloc[-1] > df["D"].iloc[-1])
+                )
 
             # 法人資料
             cond_foreign = True
@@ -44,12 +54,20 @@ def get_watchlist(
                     legal3 = legal.tail(3)
                     cond_foreign = legal3["three_investors_net"].sum() > 0
 
-            # 判斷條件是否足夠進 watchlist
-            cond_count = sum([cond_rsi, cond_price, cond_foreign])
+            # 整體條件判斷
+            cond_count = sum([cond_rsi, cond_kd, cond_foreign])
             required = sum([use_rsi, use_kd, use_foreign])
-            if cond_count >= max(1, required // 2):  # 至少過半條件
+
+            if cond_count >= required:  # ✅ 改為「條件全滿足才納入」
                 watchlist.append({
-                    "股票代號": stock_id
+                    "股票代號": stock_id,
+                    "符合 RSI": cond_rsi,
+                    "符合 KD 黃金交叉": cond_kd,
+                    "法人連3日買超": cond_foreign,
+                    "RSI": round(today["RSI"], 2) if use_rsi else None,
+                    "K": round(df["K"].iloc[-1], 2) if use_kd else None,
+                    "D": round(df["D"].iloc[-1], 2) if use_kd else None,
+                    "法人買超合計": legal3["three_investors_net"].sum() if use_foreign else None
                 })
 
         except Exception as e:
